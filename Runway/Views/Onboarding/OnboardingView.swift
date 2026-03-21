@@ -100,9 +100,37 @@ struct OnboardingView: View {
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 220)
                 }
-                Text("Enter your monthly spending limit")
+
+                // Quick-pick chips
+                HStack(spacing: 10) {
+                    ForEach([1000, 2000, 3000, 5000], id: \.self) { amount in
+                        Button {
+                            budget = String(amount)
+                        } label: {
+                            Text("$\(amount / 1000)k")
+                                .font(.subheadline.weight(.medium))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Int(budget) == amount
+                                        ? BudgeteerColors.green.opacity(0.2)
+                                        : theme.card
+                                )
+                                .foregroundStyle(
+                                    Int(budget) == amount
+                                        ? BudgeteerColors.green
+                                        : .secondary
+                                )
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+                .padding(.top, 8)
+
+                Text("You can change this anytime in Settings.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                    .padding(.top, 4)
             }
 
             Spacer()
