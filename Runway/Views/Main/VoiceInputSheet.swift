@@ -80,7 +80,7 @@ struct ManualEntrySheet: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
-                .background(inputText.isEmpty ? Color.gray.opacity(0.4) : RunwayColors.green)
+                .background(inputText.isEmpty ? Color.gray.opacity(0.4) : BudgeteerColors.green)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
             }
             .disabled(inputText.isEmpty || isProcessing)
@@ -156,7 +156,7 @@ struct ManualEntrySheet: View {
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background((Double(confirmAmount) ?? 0) > 0 ? RunwayColors.green : Color.gray.opacity(0.4))
+                        .background((Double(confirmAmount) ?? 0) > 0 ? BudgeteerColors.green : Color.gray.opacity(0.4))
                         .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
             }

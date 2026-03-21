@@ -29,10 +29,10 @@ struct OnboardingView: View {
 
             Image(systemName: "gauge.with.dots.needle.67percent")
                 .font(.system(size: 80))
-                .foregroundStyle(RunwayColors.green)
+                .foregroundStyle(BudgeteerColors.green)
 
             VStack(spacing: 12) {
-                Text("Spendometer")
+                Text("Budgeteer")
                     .font(.system(size: 52, weight: .bold, design: .rounded))
                 Text("Track your monthly spending\nwith a quick voice command.")
                     .font(.body)
@@ -83,7 +83,7 @@ struct OnboardingView: View {
 
             VStack(spacing: 12) {
                 let isValid = (Double(budget) ?? 0) > 0
-                primaryButton("Start Using Spendometer", enabled: isValid) {
+                primaryButton("Start Using Budgeteer", enabled: isValid) {
                     if let amount = Double(budget), amount > 0 {
                         budgetManager.monthlyBudget = amount
                         hasCompletedOnboarding = true
@@ -104,7 +104,7 @@ struct OnboardingView: View {
                 .font(.headline)
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(enabled ? RunwayColors.green : Color.gray.opacity(0.4))
+                .background(enabled ? BudgeteerColors.green : Color.gray.opacity(0.4))
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
         }

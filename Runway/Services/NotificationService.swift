@@ -22,7 +22,7 @@ final class NotificationService {
         switch type {
         case .yellow:
             let pctSpent = Int((1 - remaining / budget) * 100)
-            content.title = "Spendometer Check 💰"
+            content.title = "Budgeteer Check 💰"
             content.body  = "You've spent \(pctSpent)% of your budget. \(fmt(remaining)) remaining."
         case .red:
             content.title = "Low Balance ⚠️"

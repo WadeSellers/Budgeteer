@@ -95,7 +95,7 @@ struct CalendarHeatmapView: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(monthName)
                     .font(.title3.weight(.semibold))
-                    .foregroundStyle(RunwayColors.green)
+                    .foregroundStyle(BudgeteerColors.green)
 
                 Spacer()
 
@@ -190,7 +190,7 @@ struct CalendarHeatmapView: View {
             // Selected past day ring — yellow border
             if selected && !isToday {
                 RoundedRectangle(cornerRadius: 6)
-                    .strokeBorder(RunwayColors.yellow, lineWidth: 2.5)
+                    .strokeBorder(BudgeteerColors.yellow, lineWidth: 2.5)
             }
         }
         .aspectRatio(1, contentMode: .fit)
@@ -216,10 +216,10 @@ struct CalendarHeatmapView: View {
     }
 
     // MARK: - Heatmap color
-    // Delegates to RunwayColors.spendingColor so the scale is identical
+    // Delegates to BudgeteerColors.spendingColor so the scale is identical
     // everywhere in the app (calendar cells, mic button, recording overlay).
 
     private func heatmapColor(spent: Double) -> Color {
-        RunwayColors.spendingColor(spent: spent, dailyBudget: dailyBudget)
+        BudgeteerColors.spendingColor(spent: spent, dailyBudget: dailyBudget)
     }
 }

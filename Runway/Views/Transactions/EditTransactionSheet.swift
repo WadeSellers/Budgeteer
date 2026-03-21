@@ -120,7 +120,7 @@ struct EditTransactionSheet: View {
                     .font(.headline)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
-                    .background(canSave ? RunwayColors.green : Color.gray.opacity(0.4))
+                    .background(canSave ? BudgeteerColors.green : Color.gray.opacity(0.4))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
             }
             .disabled(!canSave)

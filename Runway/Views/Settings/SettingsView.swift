@@ -67,7 +67,7 @@ struct SettingsView: View {
                     Button("Cancel") { wasCancelled = true; dismiss() }.foregroundStyle(.secondary)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }.foregroundStyle(RunwayColors.green)
+                    Button("Save") { save() }.foregroundStyle(BudgeteerColors.green)
                 }
                 ToolbarItem(placement: .keyboard) {
                     HStack {
@@ -75,7 +75,7 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                         Spacer()
                         Button("Done") { budgetFocused = false }
-                            .foregroundStyle(RunwayColors.green)
+                            .foregroundStyle(BudgeteerColors.green)
                     }
                 }
             }

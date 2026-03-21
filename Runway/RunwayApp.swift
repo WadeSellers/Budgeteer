@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct RunwayApp: App {
+struct BudgeteerApp: App {
     @State private var budgetManager  = BudgetManager()
     @State private var networkMonitor = NetworkMonitor()
     @State private var themeManager   = ThemeManager()

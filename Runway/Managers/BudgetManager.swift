@@ -64,7 +64,7 @@ final class BudgetManager {
         return max(1, range.count - today + 1)
     }
 
-    func meterColor(_ transactions: [Transaction]) -> RunwayThresholdColor {
+    func meterColor(_ transactions: [Transaction]) -> BudgeteerThresholdColor {
         if remaining(transactions) < 0           { return .red }
         let pct = percentRemaining(transactions)
         if pct <= redThreshold                   { return .red }

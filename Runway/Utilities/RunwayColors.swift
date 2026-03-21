@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct RunwayColors {
+struct BudgeteerColors {
     static let green  = Color(red: 0.204, green: 0.780, blue: 0.349)
     static let yellow = Color(red: 1.000, green: 0.624, blue: 0.039)
     static let red    = Color(red: 1.000, green: 0.231, blue: 0.188)
@@ -51,14 +51,14 @@ struct RunwayColors {
     }
 }
 
-enum RunwayThresholdColor {
+enum BudgeteerThresholdColor {
     case green, yellow, red
 
     var color: Color {
         switch self {
-        case .green:  return RunwayColors.green
-        case .yellow: return RunwayColors.yellow
-        case .red:    return RunwayColors.red
+        case .green:  return BudgeteerColors.green
+        case .yellow: return BudgeteerColors.yellow
+        case .red:    return BudgeteerColors.red
         }
     }
 }

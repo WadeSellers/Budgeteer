@@ -55,7 +55,7 @@ struct MainView: View {
         let daysInMonth = Double(Calendar.current.range(of: .day, in: .month, for: Date())?.count ?? 30)
         let dailyBudget = budgetManager.monthlyBudget / daysInMonth
         let spent       = budgetManager.totalSpent(for: activeDate, in: transactions)
-        return RunwayColors.spendingColor(spent: spent, dailyBudget: dailyBudget)
+        return BudgeteerColors.spendingColor(spent: spent, dailyBudget: dailyBudget)
     }
 
     var body: some View {
@@ -276,7 +276,7 @@ struct MainView: View {
                              ? String(format: "-$%.0f", abs(rem))
                              : String(format: "$%.0f", rem))
                             .font(.system(size: 24, weight: .semibold, design: .rounded))
-                            .foregroundStyle(isOver ? RunwayColors.red : meterColor)
+                            .foregroundStyle(isOver ? BudgeteerColors.red : meterColor)
                             .contentTransition(.numericText())
                         Text("\(daysLeft) days left in \(monthName)")
                             .font(.caption2)
@@ -295,7 +295,7 @@ struct MainView: View {
                          ? "Over budget"
                          : String(format: "$%.0f/day", allowance))
                         .font(.system(size: 24, weight: .semibold, design: .rounded))
-                        .foregroundStyle(isOver ? RunwayColors.red : meterColor)
+                        .foregroundStyle(isOver ? BudgeteerColors.red : meterColor)
                         .contentTransition(.numericText())
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
