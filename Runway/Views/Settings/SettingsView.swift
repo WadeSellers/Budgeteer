@@ -1,15 +1,18 @@
 import SwiftUI
+import UserNotifications
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(BudgetManager.self) private var budgetManager
     @Environment(ThemeManager.self)  private var theme
 
-    @State private var budgetText   = ""
-    @State private var wasCancelled = false
-    @State private var devTapCount  = 0
-    @State private var showDevMenu  = false
-    @State private var devConfirmation: String?
+    @State private var budgetText        = ""
+    @State private var wasCancelled      = false
+    @State private var devTapCount       = 0
+    @State private var showDevMenu       = false
+    @State private var devConfirmation:  String?
+    @State private var alertsEnabled     = false
+    @State private var alertsDenied      = false
 
     @FocusState private var budgetFocused: Bool
 
@@ -57,6 +60,45 @@ struct SettingsView: View {
                     } header: {
                         Text("Budget").foregroundStyle(.secondary)
                     }
+                    // Notifications
+                    Section {
+                        Toggle("Budget Alerts", isOn: $alertsEnabled)
+                            .tint(BudgeteerColors.green)
+                            .listRowBackground(theme.card)
+                            .onChange(of: alertsEnabled) { _, enabled in
+                                if enabled {
+                                    Task {
+                                        let granted = await NotificationService.shared.requestPermissions()
+                                        if !granted {
+                                            alertsEnabled = false
+                                            alertsDenied  = true
+                                        }
+                                    }
+                                }
+                            }
+
+                        if alertsDenied {
+                            Text("Notifications are disabled in system Settings. Tap below to open Settings and enable them.")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .listRowBackground(theme.card)
+
+                            Button("Open Settings") {
+                                if let url = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundStyle(BudgeteerColors.green)
+                            .listRowBackground(theme.card)
+                        }
+                    } header: {
+                        Text("Notifications").foregroundStyle(.secondary)
+                    } footer: {
+                        Text("Get notified when you're approaching your budget limit.")
+                            .foregroundStyle(.tertiary)
+                    }
+
                     // Privacy
                     Section {
                         Button {
@@ -155,6 +197,11 @@ struct SettingsView: View {
             }
             .onAppear {
                 budgetText = String(Int(budgetManager.monthlyBudget))
+                Task {
+                    let center = UNUserNotificationCenter.current()
+                    let settings = await center.notificationSettings()
+                    alertsEnabled = settings.authorizationStatus == .authorized
+                }
             }
             .onDisappear {
                 if !wasCancelled { applyChanges() }

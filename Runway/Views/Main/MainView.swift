@@ -234,8 +234,11 @@ struct MainView: View {
             speechService.prewarm()   // kick off early if permissions already granted
         }
         .task {
-            await NotificationService.shared.requestPermissions()
-            await speechService.requestPermissions()   // prewarm() fires inside here too
+            // Permissions are now handled during onboarding.
+            // Just ensure speech is prewarmed if permissions were already granted.
+            if !speechService.permissionGranted {
+                await speechService.requestPermissions()
+            }
         }
     }
 

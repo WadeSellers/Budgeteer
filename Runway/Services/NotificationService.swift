@@ -32,7 +32,7 @@ final class NotificationService {
             content.body  = "You're \(fmt(abs(remaining))) over your monthly budget."
         }
 
-        let id = "spendometer-\(type.rawValue)-\(Int(Date().timeIntervalSince1970))"
+        let id = "budgeteer-\(type.rawValue)-\(Int(Date().timeIntervalSince1970))"
         let req = UNNotificationRequest(identifier: id, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req)
     }
