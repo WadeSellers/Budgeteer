@@ -54,6 +54,25 @@ struct SettingsView: View {
                     } header: {
                         Text("Budget").foregroundStyle(.secondary)
                     }
+                    // Privacy
+                    Section {
+                        Button {
+                            if let url = URL(string: "https://wadesellers.github.io/Budgeteer/privacy") {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            HStack {
+                                Text("Privacy Policy").foregroundStyle(.primary)
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .listRowBackground(theme.card)
+                    } header: {
+                        Text("Legal").foregroundStyle(.secondary)
+                    }
                 }
                 .listStyle(.insetGrouped)
                 .scrollContentBackground(.hidden)

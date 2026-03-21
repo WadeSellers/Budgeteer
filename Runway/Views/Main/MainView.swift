@@ -16,6 +16,9 @@ struct MainView: View {
     @State private var showTransactions      = false   // full month
     @State private var showTodayTransactions = false   // active day
     @State private var showSettings          = false
+    @State private var showPrivacyConsent    = false
+
+    @AppStorage("hasAcceptedPrivacy") private var hasAcceptedPrivacy = false
 
     // Toast + edit
     @State private var toastTransaction:  Transaction?
@@ -160,6 +163,14 @@ struct MainView: View {
             SettingsView()
                 .environment(budgetManager)
                 .environment(theme)
+        }
+        .sheet(isPresented: $showPrivacyConsent) {
+            PrivacyConsentView {
+                hasAcceptedPrivacy = true
+            }
+            .environment(theme)
+            .presentationDetents([.medium])
+            .interactiveDismissDisabled()
         }
         // When the recognizer delivers its final result, isRecording flips to false.
         // That's our signal to process — the transcript is now complete.
@@ -461,6 +472,10 @@ struct MainView: View {
     // MARK: - Recording
 
     private func startRecording() {
+        guard hasAcceptedPrivacy else {
+            showPrivacyConsent = true
+            return
+        }
         recordingError = nil
         do {
             try speechService.start()
