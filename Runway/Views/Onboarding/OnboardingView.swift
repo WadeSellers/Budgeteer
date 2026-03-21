@@ -10,8 +10,9 @@ struct OnboardingView: View {
     @AppStorage("hasAcceptedPrivacy")     private var hasAcceptedPrivacy     = false
 
     @State private var step   = 0
-    @State private var budget = ""
-    @FocusState private var budgetFocused: Bool
+    @State private var budgetAmount = 0
+    @State private var contentVisible = true
+    @State private var isTransitioning = false
 
     // Practice recording
     @State private var speechService      = SpeechService()
@@ -21,6 +22,7 @@ struct OnboardingView: View {
     @State private var overlayExpanded    = false
     @State private var practiceResult:    PracticeResult?
     @State private var permissionDenied   = false
+    @State private var pileHeight: CGFloat = 0
 
     private enum PracticeState {
         case ready, recording, processing, done
@@ -36,16 +38,26 @@ struct OnboardingView: View {
         ZStack {
             theme.appBackground.ignoresSafeArea()
 
-            switch step {
-            case 0:  welcomeStep.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-            case 1:  budgetStep.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-            case 2:  consentStep.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-            case 3:  practiceStep.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
-            default: successStep.transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
+            // Money rain animation — persists across steps 0 and 1
+            if step < 2 {
+                MoneyRainView(pileHeight: $pileHeight)
             }
+
+            Group {
+                switch step {
+                case 0:  welcomeStep
+                case 1:  budgetStep
+                case 2:  consentStep
+                case 3:  practiceStep
+                default: successStep
+                }
+            }
+            .opacity(contentVisible ? 1 : 0)
+            .scaleEffect(contentVisible ? 1 : 0.82)
+            .offset(y: contentVisible ? 0 : -20)
+            .animation(.easeInOut(duration: 0.35), value: contentVisible)
         }
         .foregroundStyle(.primary)
-        .animation(.easeInOut(duration: 0.3), value: step)
     }
 
     // MARK: - Step 0: Welcome
@@ -69,8 +81,8 @@ struct OnboardingView: View {
 
             Spacer()
 
-            primaryButton("Get Started") { step = 1 }
-                .padding(.bottom, 40)
+            primaryButton("Get Started") { goToStep(1) }
+                .padding(.bottom, 16 + pileHeight)
         }
         .padding(.horizontal, 32)
     }
@@ -78,88 +90,19 @@ struct OnboardingView: View {
     // MARK: - Step 1: Budget
 
     private var budgetStep: some View {
-        VStack(spacing: 32) {
-            Spacer()
-
+        BillCounterView(amount: $budgetAmount, pileHeight: pileHeight) {
             VStack(spacing: 12) {
-                Text("Set Your Budget")
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
-                Text("How much do you want to spend\nthis month?")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-
-            VStack(spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("$")
-                        .font(.system(size: 48, weight: .light))
-                        .foregroundStyle(.secondary)
-                    TextField("0", text: $budget)
-                        .font(.system(size: 56, weight: .bold, design: .rounded))
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 220)
-                        .focused($budgetFocused)
-                        .onChange(of: budgetFocused) { _, focused in
-                            if focused {
-                                let text = budget
-                                budget = ""
-                                budget = text
-                            }
-                        }
+                primaryButton("Continue", enabled: budgetAmount > 0) {
+                    budgetManager.monthlyBudget = Double(budgetAmount)
+                    goToStep(2)
                 }
-
-                // Quick-pick chips
-                HStack(spacing: 10) {
-                    ForEach([1000, 2000, 3000, 5000], id: \.self) { amount in
-                        Button {
-                            budget = String(amount)
-                        } label: {
-                            Text("$\(amount / 1000)k")
-                                .font(.subheadline.weight(.medium))
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(
-                                    Int(budget) == amount
-                                        ? BudgeteerColors.green.opacity(0.2)
-                                        : theme.card
-                                )
-                                .foregroundStyle(
-                                    Int(budget) == amount
-                                        ? BudgeteerColors.green
-                                        : .secondary
-                                )
-                                .clipShape(Capsule())
-                        }
-                    }
+                backButton {
+                    budgetAmount = 0
+                    goToStep(0)
                 }
-                .padding(.top, 8)
-
-                Text("You can change this anytime in Settings.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 4)
             }
-
-            Spacer()
-
-            VStack(spacing: 12) {
-                let isValid = (Double(budget) ?? 0) > 0
-                primaryButton("Continue", enabled: isValid) {
-                    if let amount = Double(budget), amount > 0 {
-                        budgetManager.monthlyBudget = amount
-                        budgetFocused = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            step = 2
-                        }
-                    }
-                }
-                backButton { step = 0 }
-            }
-            .padding(.bottom, 40)
         }
-        .padding(.horizontal, 32)
+        .coordinateSpace(name: "billCounter")
     }
 
     // MARK: - Step 2: Consent + Permissions
@@ -204,7 +147,7 @@ struct OnboardingView: View {
                     Task {
                         await speechService.requestPermissions()
                         if speechService.permissionGranted {
-                            step = 3
+                            goToStep(3)
                         } else {
                             permissionDenied = true
                         }
@@ -219,7 +162,7 @@ struct OnboardingView: View {
                     .foregroundStyle(.secondary)
                 }
 
-                backButton { step = 1 }
+                backButton { goToStep(1) }
             }
             .padding(.bottom, 40)
         }
@@ -401,7 +344,7 @@ struct OnboardingView: View {
 
                     // Auto-advance to success step
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        withAnimation { step = 4 }
+                        goToStep(4)
                     }
                 }
             } catch {
@@ -475,6 +418,31 @@ struct OnboardingView: View {
         Button(action: action) {
             Text("Back")
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - Cinematic Step Transition
+
+    /// Fades out current content, changes step, then fades in new content.
+    private func goToStep(_ newStep: Int) {
+        guard !isTransitioning else { return }
+        isTransitioning = true
+
+        // Phase 1: fade out current content
+        withAnimation(.easeIn(duration: 0.3)) {
+            contentVisible = false
+        }
+
+        // Phase 2: change step while invisible, then fade in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            step = newStep
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                withAnimation(.easeOut(duration: 0.4)) {
+                    contentVisible = true
+                }
+                isTransitioning = false
+            }
         }
     }
 }
