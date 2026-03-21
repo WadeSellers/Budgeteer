@@ -11,6 +11,7 @@ struct OnboardingView: View {
 
     @State private var step   = 0
     @State private var budget = ""
+    @FocusState private var budgetFocused: Bool
 
     // Practice recording
     @State private var speechService      = SpeechService()
@@ -99,6 +100,14 @@ struct OnboardingView: View {
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 220)
+                        .focused($budgetFocused)
+                        .onChange(of: budgetFocused) { _, focused in
+                            if focused {
+                                let text = budget
+                                budget = ""
+                                budget = text
+                            }
+                        }
                 }
 
                 // Quick-pick chips
@@ -140,7 +149,10 @@ struct OnboardingView: View {
                 primaryButton("Continue", enabled: isValid) {
                     if let amount = Double(budget), amount > 0 {
                         budgetManager.monthlyBudget = amount
-                        step = 2
+                        budgetFocused = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            step = 2
+                        }
                     }
                 }
                 backButton { step = 0 }
