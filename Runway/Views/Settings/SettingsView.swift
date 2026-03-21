@@ -7,6 +7,8 @@ struct SettingsView: View {
 
     @State private var budgetText   = ""
     @State private var wasCancelled = false
+    @State private var devTapCount  = 0
+    @State private var showDevMenu  = false
 
     @FocusState private var budgetFocused: Bool
 
@@ -72,6 +74,54 @@ struct SettingsView: View {
                         .listRowBackground(theme.card)
                     } header: {
                         Text("Legal").foregroundStyle(.secondary)
+                    }
+
+                    // Developer menu (hidden — tap version 5 times to reveal)
+                    if showDevMenu {
+                        Section {
+                            Button("Reset Privacy Consent") {
+                                UserDefaults.standard.removeObject(forKey: "hasAcceptedPrivacy")
+                            }
+                            .foregroundStyle(.orange)
+                            .listRowBackground(theme.card)
+
+                            Button("Reset Onboarding") {
+                                UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding")
+                            }
+                            .foregroundStyle(.orange)
+                            .listRowBackground(theme.card)
+
+                            Button("Delete All Transactions") {
+                                // Handled by caller — placeholder for now
+                            }
+                            .foregroundStyle(.red)
+                            .listRowBackground(theme.card)
+                        } header: {
+                            Text("Developer").foregroundStyle(.orange)
+                        }
+                    }
+
+                    // Version footer — tap 5 times to toggle dev menu
+                    Section {
+                        HStack {
+                            Spacer()
+                            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+                            let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+                            Text("Budgeteer v\(version) (\(build))")
+                                .font(.caption2)
+                                .foregroundStyle(.quaternary)
+                            Spacer()
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            devTapCount += 1
+                            if devTapCount >= 5 {
+                                withAnimation { showDevMenu.toggle() }
+                                devTapCount = 0
+                            }
+                        }
                     }
                 }
                 .listStyle(.insetGrouped)
