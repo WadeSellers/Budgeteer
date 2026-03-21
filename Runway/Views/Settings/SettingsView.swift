@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var wasCancelled = false
     @State private var devTapCount  = 0
     @State private var showDevMenu  = false
+    @State private var devConfirmation: String?
 
     @FocusState private var budgetFocused: Bool
 
@@ -79,23 +80,27 @@ struct SettingsView: View {
                     // Developer menu (hidden — tap version 5 times to reveal)
                     if showDevMenu {
                         Section {
-                            Button("Reset Privacy Consent") {
+                            devButton("Reset Privacy Consent") {
                                 UserDefaults.standard.removeObject(forKey: "hasAcceptedPrivacy")
                             }
-                            .foregroundStyle(.orange)
-                            .listRowBackground(theme.card)
-
-                            Button("Reset Onboarding") {
+                            devButton("Reset Onboarding") {
                                 UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding")
                             }
-                            .foregroundStyle(.orange)
-                            .listRowBackground(theme.card)
-
-                            Button("Delete All Transactions") {
-                                // Handled by caller — placeholder for now
+                            devButton("Delete All Transactions", destructive: true) {
+                                // Placeholder
                             }
-                            .foregroundStyle(.red)
-                            .listRowBackground(theme.card)
+
+                            if let msg = devConfirmation {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                    Text(msg)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .listRowBackground(theme.card)
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
                         } header: {
                             Text("Developer").foregroundStyle(.orange)
                         }
@@ -169,5 +174,20 @@ struct SettingsView: View {
     private func save() {
         applyChanges()
         dismiss()
+    }
+
+    private func devButton(_ label: String, destructive: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(label) {
+            action()
+            withAnimation(.spring(response: 0.3)) {
+                devConfirmation = "\(label) — done"
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                withAnimation { devConfirmation = nil }
+            }
+        }
+        .foregroundStyle(destructive ? .red : .orange)
+        .listRowBackground(theme.card)
     }
 }

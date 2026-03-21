@@ -164,14 +164,28 @@ struct MainView: View {
                 .environment(budgetManager)
                 .environment(theme)
         }
-        .sheet(isPresented: $showPrivacyConsent) {
-            PrivacyConsentView {
-                hasAcceptedPrivacy = true
+        // ── Privacy consent overlay — drops from top ──────────────────
+        .overlay {
+            if showPrivacyConsent {
+                // Dim background
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .onTapGesture { } // block taps through
+
+                VStack {
+                    PrivacyConsentView {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                            hasAcceptedPrivacy = true
+                            showPrivacyConsent = false
+                        }
+                    }
+                    .environment(theme)
+                    .padding(.top, 60)
+                    Spacer()
+                }
             }
-            .environment(theme)
-            .presentationDetents([.medium])
-            .interactiveDismissDisabled()
         }
+        .animation(.spring(response: 0.5, dampingFraction: 0.82), value: showPrivacyConsent)
         // When the recognizer delivers its final result, isRecording flips to false.
         // That's our signal to process — the transcript is now complete.
         .onChange(of: speechService.isRecording) { _, isRecording in

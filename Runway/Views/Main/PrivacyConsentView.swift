@@ -1,31 +1,24 @@
 import SwiftUI
 
 /// Visual, icon-driven consent card shown before the user's first voice recording.
-/// Explains the voice → text → AI → categories flow in a friendly way.
+/// Drops in from the top and covers the mic button area.
 struct PrivacyConsentView: View {
     @Environment(ThemeManager.self) private var theme
-    @Environment(\.dismiss) private var dismiss
 
     let onAccept: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
 
-            // Drag handle
-            Capsule()
-                .fill(.tertiary)
-                .frame(width: 36, height: 5)
-                .padding(.top, 10)
-                .padding(.bottom, 24)
-
             // Title
             Text("How Voice Recording Works")
                 .font(.title3.weight(.semibold))
                 .multilineTextAlignment(.center)
+                .padding(.top, 32)
                 .padding(.bottom, 28)
 
             // Flow steps
-            VStack(spacing: 20) {
+            VStack(spacing: 18) {
                 flowStep(
                     icon: "mic.fill",
                     color: BudgeteerColors.green,
@@ -62,7 +55,7 @@ struct PrivacyConsentView: View {
             }
             .padding(.horizontal, 8)
 
-            Spacer(minLength: 24)
+            Spacer(minLength: 20)
 
             // Privacy policy link
             Button {
@@ -75,13 +68,10 @@ struct PrivacyConsentView: View {
                     .foregroundStyle(.secondary)
                     .underline()
             }
-            .padding(.bottom, 12)
+            .padding(.bottom, 14)
 
             // Accept button
-            Button {
-                onAccept()
-                dismiss()
-            } label: {
+            Button(action: onAccept) {
                 Text("Got It")
                     .font(.headline)
                     .foregroundStyle(.white)
@@ -90,12 +80,17 @@ struct PrivacyConsentView: View {
                     .background(BudgeteerColors.green)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
-            .padding(.horizontal, 4)
-            .padding(.bottom, 8)
+            .padding(.bottom, 16)
         }
-        .padding(.horizontal, 24)
-        .background(theme.appBackground)
-        .preferredColorScheme(theme.resolvedColorScheme)
+        .padding(.horizontal, 28)
+        .frame(maxWidth: .infinity)
+        .background(
+            theme.card
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .shadow(color: .black.opacity(0.35), radius: 30, y: 10)
+        )
+        .padding(.horizontal, 12)
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     // MARK: - Components
