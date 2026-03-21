@@ -1,32 +1,35 @@
-//
-//  RunwayApp.swift
-//  Runway
-//
-//  Created by Wade Sellers on 3/14/26.
-//
-
 import SwiftUI
 import SwiftData
 
 @main
 struct RunwayApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    @State private var budgetManager  = BudgetManager()
+    @State private var networkMonitor = NetworkMonitor()
+    @State private var themeManager   = ThemeManager()
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            SystemSchemeCapture()
+                .modelContainer(for: Transaction.self)
+                .environment(budgetManager)
+                .environment(networkMonitor)
+                .environment(themeManager)
         }
-        .modelContainer(sharedModelContainer)
+    }
+}
+
+/// Reads the real iOS system color scheme BEFORE `.preferredColorScheme` is applied,
+/// stores it in ThemeManager, then overrides the scheme based on the user's appearance
+/// preference (light, dark, dim, or system passthrough).
+private struct SystemSchemeCapture: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(ThemeManager.self) private var themeManager
+
+    var body: some View {
+        ContentView()
+            .preferredColorScheme(themeManager.resolvedColorScheme)
+            .onChange(of: colorScheme, initial: true) { _, scheme in
+                themeManager.systemColorScheme = scheme
+            }
     }
 }
