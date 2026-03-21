@@ -15,47 +15,31 @@ struct PrivacyConsentView: View {
                 Spacer(minLength: 0)
 
                 // Title
-                Text("How Voice Recording Works")
-                    .font(.title3.weight(.bold))
+                Text("Before You Record")
+                    .font(.title2.weight(.bold))
                     .foregroundStyle(.white)
-                    .multilineTextAlignment(.center)
                     .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
-                    .padding(.bottom, 28)
+                    .padding(.bottom, 36)
 
-                // Flow steps
-                VStack(spacing: 16) {
-                    flowStep(
-                        icon: "mic.fill",
-                        title: "You speak",
-                        detail: "Hold the button and say what you bought"
+                // Three concise points
+                VStack(spacing: 24) {
+                    privacyPoint(
+                        icon: "waveform",
+                        text: "Your voice is converted to text **on your device**. No audio is saved or sent."
                     )
 
-                    flowArrow()
-
-                    flowStep(
-                        icon: "text.quote",
-                        title: "Speech becomes text",
-                        detail: "Apple converts your voice to text on your device. No audio is saved or sent anywhere."
-                    )
-
-                    flowArrow()
-
-                    flowStep(
+                    privacyPoint(
                         icon: "cpu",
-                        title: "AI reads the text",
-                        detail: "The text is sent to an AI service to figure out the amount, description, and category. Only the text — never audio or personal info."
+                        text: "The text is sent to AI to extract the **amount and category**. Nothing else."
                     )
 
-                    flowArrow()
-
-                    flowStep(
-                        icon: "checkmark.circle.fill",
-                        title: "Saved to your device",
-                        detail: "The purchase is logged locally. Your data stays on your phone."
+                    privacyPoint(
+                        icon: "lock.shield",
+                        text: "Your purchases **stay on your phone**. We don't have an account or a server."
                     )
                 }
 
-                Spacer(minLength: 16)
+                Spacer(minLength: 20)
 
                 // Privacy policy link
                 Button {
@@ -63,12 +47,12 @@ struct PrivacyConsentView: View {
                         UIApplication.shared.open(url)
                     }
                 } label: {
-                    Text("Read full privacy policy")
+                    Text("Full privacy policy")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.8))
+                        .foregroundStyle(.white.opacity(0.7))
                         .underline()
                 }
-                .padding(.bottom, 16)
+                .padding(.bottom, 18)
 
                 // Accept button
                 Button(action: onAccept) {
@@ -89,7 +73,6 @@ struct PrivacyConsentView: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 36)
-            // Keep everything in the upper ~82% so it doesn't overlap the mic button
             .frame(maxWidth: .infinity, maxHeight: H * 0.82)
         }
         .ignoresSafeArea()
@@ -97,32 +80,21 @@ struct PrivacyConsentView: View {
 
     // MARK: - Components
 
-    private func flowStep(icon: String, title: String, detail: String) -> some View {
-        HStack(alignment: .top, spacing: 14) {
+    private func privacyPoint(icon: String, text: LocalizedStringKey) -> some View {
+        HStack(alignment: .top, spacing: 16) {
             Image(systemName: icon)
-                .font(.system(size: 16))
+                .font(.system(size: 18, weight: .medium))
                 .foregroundStyle(.white)
-                .frame(width: 34, height: 34)
-                .background(.white.opacity(0.25))
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .frame(width: 38, height: 38)
+                .background(.white.opacity(0.2))
+                .clipShape(Circle())
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.8))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.9))
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 0)
         }
-    }
-
-    private func flowArrow() -> some View {
-        Image(systemName: "arrow.down")
-            .font(.caption.weight(.bold))
-            .foregroundStyle(.white.opacity(0.5))
     }
 }
