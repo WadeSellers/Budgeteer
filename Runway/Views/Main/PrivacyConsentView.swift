@@ -1,115 +1,112 @@
 import SwiftUI
 
-/// Visual, icon-driven consent card shown before the user's first voice recording.
-/// Drops in from the top and covers the mic button area.
+/// Consent content that floats on top of the green recording overlay.
+/// White text on the green background — no card needed.
+/// Positioned in the upper portion of the screen, above the mic button.
 struct PrivacyConsentView: View {
-    @Environment(ThemeManager.self) private var theme
 
     let onAccept: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
+        GeometryReader { proxy in
+            let H = proxy.size.height
 
-            // Title
-            Text("How Voice Recording Works")
-                .font(.title3.weight(.semibold))
-                .multilineTextAlignment(.center)
-                .padding(.top, 32)
-                .padding(.bottom, 28)
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
 
-            // Flow steps
-            VStack(spacing: 18) {
-                flowStep(
-                    icon: "mic.fill",
-                    color: BudgeteerColors.green,
-                    title: "You speak",
-                    detail: "Hold the button and say what you bought"
-                )
-
-                flowArrow()
-
-                flowStep(
-                    icon: "text.quote",
-                    color: .blue,
-                    title: "Speech becomes text",
-                    detail: "Apple converts your voice to text on your device. No audio is saved or sent anywhere."
-                )
-
-                flowArrow()
-
-                flowStep(
-                    icon: "cpu",
-                    color: .purple,
-                    title: "AI reads the text",
-                    detail: "The text is sent to an AI service to figure out the amount, description, and category. Only the text — never audio or personal info."
-                )
-
-                flowArrow()
-
-                flowStep(
-                    icon: "checkmark.circle.fill",
-                    color: BudgeteerColors.green,
-                    title: "Saved to your device",
-                    detail: "The purchase is logged locally. Your data stays on your phone."
-                )
-            }
-            .padding(.horizontal, 8)
-
-            Spacer(minLength: 20)
-
-            // Privacy policy link
-            Button {
-                if let url = URL(string: "https://wadesellers.github.io/Budgeteer/privacy") {
-                    UIApplication.shared.open(url)
-                }
-            } label: {
-                Text("Read full privacy policy")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .underline()
-            }
-            .padding(.bottom, 14)
-
-            // Accept button
-            Button(action: onAccept) {
-                Text("Got It")
-                    .font(.headline)
+                // Title
+                Text("How Voice Recording Works")
+                    .font(.title3.weight(.bold))
                     .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(BudgeteerColors.green)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, 28)
+
+                // Flow steps
+                VStack(spacing: 16) {
+                    flowStep(
+                        icon: "mic.fill",
+                        title: "You speak",
+                        detail: "Hold the button and say what you bought"
+                    )
+
+                    flowArrow()
+
+                    flowStep(
+                        icon: "text.quote",
+                        title: "Speech becomes text",
+                        detail: "Apple converts your voice to text on your device. No audio is saved or sent anywhere."
+                    )
+
+                    flowArrow()
+
+                    flowStep(
+                        icon: "cpu",
+                        title: "AI reads the text",
+                        detail: "The text is sent to an AI service to figure out the amount, description, and category. Only the text — never audio or personal info."
+                    )
+
+                    flowArrow()
+
+                    flowStep(
+                        icon: "checkmark.circle.fill",
+                        title: "Saved to your device",
+                        detail: "The purchase is logged locally. Your data stays on your phone."
+                    )
+                }
+
+                Spacer(minLength: 16)
+
+                // Privacy policy link
+                Button {
+                    if let url = URL(string: "https://wadesellers.github.io/Budgeteer/privacy") {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    Text("Read full privacy policy")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.5))
+                        .underline()
+                }
+                .padding(.bottom, 14)
+
+                // Accept button
+                Button(action: onAccept) {
+                    Text("Got It")
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(.black.opacity(0.8))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(.white.opacity(0.9))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+
+                Spacer(minLength: 0)
             }
-            .padding(.bottom, 16)
+            .padding(.horizontal, 36)
+            // Keep everything in the upper ~75% so it doesn't overlap the mic button
+            .frame(maxWidth: .infinity, maxHeight: H * 0.82)
         }
-        .padding(.horizontal, 28)
-        .frame(maxWidth: .infinity)
-        .background(
-            theme.card
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .shadow(color: .black.opacity(0.35), radius: 30, y: 10)
-        )
-        .padding(.horizontal, 12)
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .ignoresSafeArea()
     }
 
     // MARK: - Components
 
-    private func flowStep(icon: String, color: Color, title: String, detail: String) -> some View {
+    private func flowStep(icon: String, title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 18))
+                .font(.system(size: 16))
                 .foregroundStyle(.white)
-                .frame(width: 38, height: 38)
-                .background(color)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .frame(width: 34, height: 34)
+                .background(.white.opacity(0.2))
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
                 Text(detail)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white.opacity(0.65))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -120,6 +117,6 @@ struct PrivacyConsentView: View {
     private func flowArrow() -> some View {
         Image(systemName: "arrow.down")
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(.white.opacity(0.3))
     }
 }

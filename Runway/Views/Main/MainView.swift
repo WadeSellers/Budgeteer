@@ -95,13 +95,35 @@ struct MainView: View {
             // springs back to a dot on release. The view stays in the hierarchy
             // for ~0.55 s after release so the collapse animation can finish.
             if showRecordingOverlay {
-                RecordingOverlayView(
-                    transcript: speechService.transcript,
-                    isWaitingForFinal: waitingForFinal,
-                    recordingColor: todayRecordingColor,
-                    isExpanded: overlayExpanded
-                )
-                .environment(theme)
+                if showPrivacyConsent {
+                    // Consent mode: green circle expands but shows consent content
+                    // instead of transcript
+                    RecordingOverlayView(
+                        transcript: "",
+                        isWaitingForFinal: false,
+                        recordingColor: todayRecordingColor,
+                        isExpanded: overlayExpanded
+                    )
+                    .environment(theme)
+
+                    // Consent content floats on top of the green
+                    PrivacyConsentView(onAccept: dismissConsent)
+                        .opacity(overlayExpanded ? 1 : 0)
+                        .animation(
+                            overlayExpanded
+                                ? .easeIn(duration: 0.25).delay(0.3)
+                                : .easeOut(duration: 0.15),
+                            value: overlayExpanded
+                        )
+                } else {
+                    RecordingOverlayView(
+                        transcript: speechService.transcript,
+                        isWaitingForFinal: waitingForFinal,
+                        recordingColor: todayRecordingColor,
+                        isExpanded: overlayExpanded
+                    )
+                    .environment(theme)
+                }
             }
 
             // ── Layer 4: Mic row ─────────────────────────────────────────────
@@ -164,28 +186,6 @@ struct MainView: View {
                 .environment(budgetManager)
                 .environment(theme)
         }
-        // ── Privacy consent overlay — drops from top ──────────────────
-        .overlay {
-            if showPrivacyConsent {
-                // Dim background
-                Color.black.opacity(0.4)
-                    .ignoresSafeArea()
-                    .onTapGesture { } // block taps through
-
-                VStack {
-                    PrivacyConsentView {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                            hasAcceptedPrivacy = true
-                            showPrivacyConsent = false
-                        }
-                    }
-                    .environment(theme)
-                    .padding(.top, 60)
-                    Spacer()
-                }
-            }
-        }
-        .animation(.spring(response: 0.5, dampingFraction: 0.82), value: showPrivacyConsent)
         // When the recognizer delivers its final result, isRecording flips to false.
         // That's our signal to process — the transcript is now complete.
         .onChange(of: speechService.isRecording) { _, isRecording in
@@ -487,7 +487,11 @@ struct MainView: View {
 
     private func startRecording() {
         guard hasAcceptedPrivacy else {
-            showPrivacyConsent = true
+            // Trigger the green circle expansion but don't start recording.
+            // The consent content will appear on the green overlay.
+            showPrivacyConsent    = true
+            showRecordingOverlay  = true
+            DispatchQueue.main.async { overlayExpanded = true }
             return
         }
         recordingError = nil
@@ -495,6 +499,15 @@ struct MainView: View {
             try speechService.start()
         } catch {
             recordingError = "Couldn't access microphone"
+        }
+    }
+
+    private func dismissConsent() {
+        hasAcceptedPrivacy = true
+        showPrivacyConsent = false
+        overlayExpanded    = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+            showRecordingOverlay = false
         }
     }
 
