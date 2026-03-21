@@ -17,6 +17,7 @@ struct MainView: View {
     @State private var showTodayTransactions = false   // active day
     @State private var showSettings          = false
     @State private var showPrivacyConsent    = false
+    @State private var consentContentVisible = false
 
     @AppStorage("hasAcceptedPrivacy") private var hasAcceptedPrivacy = false
 
@@ -109,12 +110,12 @@ struct MainView: View {
 
                     // Consent content floats on top of the green
                     PrivacyConsentView(onAccept: dismissConsent)
-                        .opacity(overlayExpanded ? 1 : 0)
+                        .opacity(consentContentVisible ? 1 : 0)
                         .animation(
-                            overlayExpanded
+                            consentContentVisible
                                 ? .easeIn(duration: 0.25).delay(0.3)
-                                : .easeOut(duration: 0.15),
-                            value: overlayExpanded
+                                : .easeOut(duration: 0.2),
+                            value: consentContentVisible
                         )
                 } else {
                     RecordingOverlayView(
@@ -492,7 +493,10 @@ struct MainView: View {
             // The consent content will appear on the green overlay.
             showPrivacyConsent    = true
             showRecordingOverlay  = true
-            DispatchQueue.main.async { overlayExpanded = true }
+            DispatchQueue.main.async {
+                overlayExpanded = true
+                consentContentVisible = true
+            }
             return
         }
         recordingError = nil
@@ -504,11 +508,14 @@ struct MainView: View {
     }
 
     private func dismissConsent() {
-        hasAcceptedPrivacy = true
-        showPrivacyConsent = false
-        overlayExpanded    = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
-            showRecordingOverlay = false
+        hasAcceptedPrivacy    = true
+        consentContentVisible = false       // fade text out first
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            overlayExpanded = false          // then collapse the circle
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                showPrivacyConsent   = false
+                showRecordingOverlay = false
+            }
         }
     }
 
