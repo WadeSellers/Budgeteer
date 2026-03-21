@@ -16,6 +16,8 @@ struct RecordingOverlayView: View {
     let recordingColor:    Color
     /// Toggled by the parent to drive the expand / collapse animation.
     let isExpanded:        Bool
+    /// When true, transcript text is hidden (used during privacy consent).
+    var hideTranscript:    Bool = false
 
     @Environment(ThemeManager.self) private var theme
 
@@ -104,7 +106,7 @@ struct RecordingOverlayView: View {
                 }
                 .padding(.horizontal, 36)
                 .frame(maxWidth: .infinity, maxHeight: H * 0.72)
-                .opacity(isExpanded ? 1 : 0)
+                .opacity(isExpanded && !hideTranscript ? 1 : 0)
                 .animation(
                     isExpanded
                         ? .easeIn(duration: 0.20).delay(0.25)

@@ -19,6 +19,7 @@ struct PrivacyConsentView: View {
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)
+                    .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
                     .padding(.bottom, 28)
 
                 // Flow steps
@@ -64,26 +65,31 @@ struct PrivacyConsentView: View {
                 } label: {
                     Text("Read full privacy policy")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(.white.opacity(0.8))
                         .underline()
                 }
-                .padding(.bottom, 14)
+                .padding(.bottom, 16)
 
                 // Accept button
                 Button(action: onAccept) {
-                    Text("Got It")
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(.black.opacity(0.8))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(.white.opacity(0.9))
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    HStack(spacing: 6) {
+                        Text("Got It")
+                            .font(.headline.weight(.bold))
+                        Image(systemName: "arrow.right")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(.black.opacity(0.85))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
                 }
 
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 36)
-            // Keep everything in the upper ~75% so it doesn't overlap the mic button
+            // Keep everything in the upper ~82% so it doesn't overlap the mic button
             .frame(maxWidth: .infinity, maxHeight: H * 0.82)
         }
         .ignoresSafeArea()
@@ -97,7 +103,7 @@ struct PrivacyConsentView: View {
                 .font(.system(size: 16))
                 .foregroundStyle(.white)
                 .frame(width: 34, height: 34)
-                .background(.white.opacity(0.2))
+                .background(.white.opacity(0.25))
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
 
             VStack(alignment: .leading, spacing: 3) {
@@ -106,7 +112,7 @@ struct PrivacyConsentView: View {
                     .foregroundStyle(.white)
                 Text(detail)
                     .font(.caption)
-                    .foregroundStyle(.white.opacity(0.65))
+                    .foregroundStyle(.white.opacity(0.8))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -116,7 +122,7 @@ struct PrivacyConsentView: View {
 
     private func flowArrow() -> some View {
         Image(systemName: "arrow.down")
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.white.opacity(0.3))
+            .font(.caption.weight(.bold))
+            .foregroundStyle(.white.opacity(0.5))
     }
 }

@@ -102,7 +102,8 @@ struct MainView: View {
                         transcript: "",
                         isWaitingForFinal: false,
                         recordingColor: todayRecordingColor,
-                        isExpanded: overlayExpanded
+                        isExpanded: overlayExpanded,
+                        hideTranscript: true
                     )
                     .environment(theme)
 
