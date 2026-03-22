@@ -108,83 +108,22 @@ struct OnboardingView: View {
     // MARK: - Step 2: Consent + Permissions
 
     private var consentStep: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            Text("Before You Record")
-                .font(.title2.weight(.bold))
-                .padding(.bottom, 32)
-
-            VStack(spacing: 24) {
-                consentPoint(
-                    icon: "waveform",
-                    text: "Your voice is converted to text **on your device**. No audio is saved or sent."
-                )
-                consentPoint(
-                    icon: "cpu",
-                    text: "The text is sent to AI to extract the **amount and category**. Nothing else."
-                )
-                consentPoint(
-                    icon: "lock.shield",
-                    text: "Your purchases **stay on your phone**. We don't have an account or a server."
-                )
-            }
-            .padding(.horizontal, 8)
-
-            Spacer()
-
-            if permissionDenied {
-                Text("Microphone access is needed for voice recording. You can enable it in Settings, or skip to use keyboard entry.")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .multilineTextAlignment(.center)
-                    .padding(.bottom, 12)
-            }
-
-            VStack(spacing: 12) {
-                primaryButton("Continue") {
-                    hasAcceptedPrivacy = true
-                    Task {
-                        await speechService.requestPermissions()
-                        if speechService.permissionGranted {
-                            goToStep(3)
-                        } else {
-                            permissionDenied = true
-                        }
+        ConsentAnimationView(
+            permissionDenied: $permissionDenied,
+            onContinue: {
+                hasAcceptedPrivacy = true
+                Task {
+                    await speechService.requestPermissions()
+                    if speechService.permissionGranted {
+                        goToStep(3)
+                    } else {
+                        permissionDenied = true
                     }
                 }
-
-                if permissionDenied {
-                    Button("Skip — I'll use the keyboard") {
-                        hasCompletedOnboarding = true
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                }
-
-                backButton { goToStep(1) }
-            }
-            .padding(.bottom, 40)
-        }
-        .padding(.horizontal, 32)
-    }
-
-    private func consentPoint(icon: String, text: LocalizedStringKey) -> some View {
-        HStack(alignment: .top, spacing: 16) {
-            Image(systemName: icon)
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(BudgeteerColors.green)
-                .frame(width: 38, height: 38)
-                .background(BudgeteerColors.green.opacity(0.12))
-                .clipShape(Circle())
-
-            Text(text)
-                .font(.subheadline)
-                .foregroundStyle(.primary.opacity(0.8))
-                .fixedSize(horizontal: false, vertical: true)
-
-            Spacer(minLength: 0)
-        }
+            },
+            onSkip: { hasCompletedOnboarding = true },
+            onBack: { goToStep(1) }
+        )
     }
 
     // MARK: - Step 3: Practice Recording
