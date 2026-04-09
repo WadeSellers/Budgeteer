@@ -16,6 +16,8 @@ final class NotificationService {
     }
 
     func notify(_ type: ThresholdType, remaining: Double, budget: Double) {
+        guard budget > 0 else { return }
+
         let content = UNMutableNotificationContent()
         content.sound = .default
 

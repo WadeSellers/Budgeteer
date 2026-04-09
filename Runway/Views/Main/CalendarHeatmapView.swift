@@ -9,6 +9,7 @@ struct CalendarHeatmapView: View {
     var onBudgetTap: () -> Void = {}
 
     @Environment(ThemeManager.self) private var theme
+    @Environment(HintManager.self) private var hintManager
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 5), count: 7)
     private let weekdays = ["M", "T", "W", "T", "F", "S", "S"]
@@ -99,7 +100,10 @@ struct CalendarHeatmapView: View {
 
                 Spacer()
 
-                Button(action: onBudgetTap) {
+                Button {
+                    hintManager.markSeen(.budget)
+                    onBudgetTap()
+                } label: {
                     Text(monthlyBudget, format: .currency(code: "USD").precision(.fractionLength(0)))
                         .font(.subheadline.weight(.medium))
                         .foregroundStyle(.secondary)
@@ -108,6 +112,16 @@ struct CalendarHeatmapView: View {
                         .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Monthly budget: \(monthlyBudget, format: .currency(code: "USD").precision(.fractionLength(0)))")
+                .accessibilityHint("Tap to change your monthly budget")
+                .overlay(alignment: .topTrailing) {
+                    HintBadge(
+                        message: "Tap to change your monthly budget",
+                        hintType: .budget,
+                        anchor: .topTrailing
+                    )
+                    .offset(x: 10, y: -10)
+                }
             }
 
             // Single grid for header + days — eliminates double spacing
@@ -194,6 +208,17 @@ struct CalendarHeatmapView: View {
             }
         }
         .aspectRatio(1, contentMode: .fit)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel({
+            let dayDate = date(for: day)
+            let label = dayDate.formatted(.dateTime.month(.abbreviated).day())
+            if isFuture { return "\(label), no data yet" }
+            let amount = compactAmount(spent)
+            if isToday { return "Today, \(label), spent \(amount)" }
+            return "\(label), spent \(amount)"
+        }())
+        .accessibilityAddTraits(isFuture ? [] : .isButton)
+        .accessibilityHint(isFuture ? "" : selected ? "Tap to deselect" : "Tap to view this day")
         .onTapGesture {
             guard !isFuture else { return }
             if selected {

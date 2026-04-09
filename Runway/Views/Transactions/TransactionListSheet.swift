@@ -15,6 +15,10 @@ struct TransactionListSheet: View {
 
     @State private var editingTransaction: Transaction?
 
+    // Swipe-to-delete hint
+    @AppStorage("swipeDeleteHintSeen") private var swipeDeleteHintSeen = false
+    @State private var swipeHintOffset: CGFloat = 0
+
     private var displayedTransactions: [Transaction] {
         if let date = filterDate {
             return budgetManager.transactions(for: date, in: allTransactions)
@@ -83,11 +87,12 @@ struct TransactionListSheet: View {
                             .padding(.vertical, 36)
                             .listRowBackground(Color.clear)
                         } else {
-                            ForEach(displayedTransactions) { t in
+                            ForEach(Array(displayedTransactions.enumerated()), id: \.element.id) { index, t in
                                 TransactionRow(transaction: t, isPending: false)
                                     .listRowBackground(theme.card)
                                     .contentShape(Rectangle())
                                     .onTapGesture { editingTransaction = t }
+                                    .offset(x: index == 0 ? swipeHintOffset : 0)
                             }
                             .onDelete(perform: delete)
                         }
@@ -119,6 +124,20 @@ struct TransactionListSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .onAppear {
+            guard !swipeDeleteHintSeen, !displayedTransactions.isEmpty else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    swipeHintOffset = -30
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        swipeHintOffset = 0
+                    }
+                    swipeDeleteHintSeen = true
+                }
+            }
+        }
         .sheet(item: $editingTransaction) { transaction in
             EditTransactionSheet(transaction: transaction)
                 .environment(theme)
@@ -127,7 +146,11 @@ struct TransactionListSheet: View {
 
     private func delete(at offsets: IndexSet) {
         for i in offsets { modelContext.delete(displayedTransactions[i]) }
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+        } catch {
+            print("[Budgeteer] delete save failed: \(error.localizedDescription)")
+        }
     }
 }
 

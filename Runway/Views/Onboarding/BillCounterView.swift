@@ -20,10 +20,14 @@ struct BillCounterView<Buttons: View>: View {
     @ViewBuilder let buttons: Buttons
 
     @State private var flyingBills: [FlyingBill] = []
-    @State private var displayedAmount: Int = 0
+    @State private var displayedAmount: Int = -1  // sentinel; set from binding on appear
     @State private var animationTimer: Timer?
     @State private var showButtons = false
     @State private var buttonRevealTask: Task<Void, Never>?
+    @State private var demoPlayed = false
+    @State private var demoHighlightIndex: Int? = nil  // which bill button to highlight
+    @State private var demoTask: Task<Void, Never>?
+    @State private var buttonFrames: [Int: CGRect] = [:]  // index → frame for demo use
 
     private let denominations = [5, 10, 20, 50, 100]
 
@@ -41,9 +45,6 @@ struct BillCounterView<Buttons: View>: View {
 
     var body: some View {
         GeometryReader { geo in
-            let W = geo.size.width
-            let H = geo.size.height
-
             ZStack {
                 // Flying bills layer
                 ForEach(flyingBills) { bill in
@@ -66,6 +67,7 @@ struct BillCounterView<Buttons: View>: View {
                             drift: bill.drift
                         ))
                 }
+                .accessibilityHidden(true)
 
                 // Main content
                 VStack(spacing: 0) {
@@ -75,6 +77,7 @@ struct BillCounterView<Buttons: View>: View {
                     VStack(spacing: 12) {
                         Text("Set Your Budget")
                             .font(.system(size: 36, weight: .bold, design: .rounded))
+                            .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                         Text("How much do you want to spend\nthis month?")
                             .font(.body)
                             .foregroundStyle(.secondary)
@@ -88,11 +91,14 @@ struct BillCounterView<Buttons: View>: View {
                         Text("$")
                             .font(.system(size: 44, weight: .light, design: .rounded))
                             .foregroundStyle(.secondary)
-                        Text("\(displayedAmount)")
+                        Text("\(max(0, displayedAmount))")
                             .font(.system(size: 60, weight: .bold, design: .rounded))
                             .contentTransition(.numericText(value: Double(displayedAmount)))
                             .animation(.snappy(duration: 0.2), value: displayedAmount)
                     }
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Budget amount: $\(max(0, displayedAmount))")
                     .padding(.bottom, 4)
 
                     Text("You can change this anytime in Settings.")
@@ -104,6 +110,7 @@ struct BillCounterView<Buttons: View>: View {
                         withAnimation(.spring(response: 0.3)) {
                             amount = 0
                         }
+                        SoundManager.shared.playBudgetCleared()
                         let generator = UIImpactFeedbackGenerator(style: .light)
                         generator.impactOccurred()
                     } label: {
@@ -115,6 +122,7 @@ struct BillCounterView<Buttons: View>: View {
                             .background(Color.secondary.opacity(0.12))
                             .clipShape(Capsule())
                     }
+                    .accessibilityLabel("Clear budget amount")
                     .padding(.top, 10)
                     .opacity(amount > 0 ? 1 : 0)
                     .animation(.easeInOut(duration: 0.25), value: amount > 0)
@@ -123,10 +131,12 @@ struct BillCounterView<Buttons: View>: View {
 
                     // Bill buttons
                     HStack(spacing: 8) {
-                        ForEach(denominations, id: \.self) { denom in
+                        ForEach(Array(denominations.enumerated()), id: \.element) { index, denom in
                             BillButton(
                                 denomination: denom,
-                                color: billColor(for: denom)
+                                color: billColor(for: denom),
+                                isHighlighted: demoHighlightIndex == index,
+                                onFrameChange: { frame in buttonFrames[index] = frame }
                             ) { buttonFrame in
                                 addBill(denomination: denom, from: buttonFrame, in: geo)
                             }
@@ -144,15 +154,118 @@ struct BillCounterView<Buttons: View>: View {
                 }
             }
         }
+        .onAppear {
+            if displayedAmount == -1 {
+                displayedAmount = amount
+            }
+            // If returning with a budget already set, show buttons immediately
+            if amount > 0 {
+                showButtons = true
+            }
+            // Play demo animation on first appearance (only if budget is 0)
+            if !demoPlayed && amount == 0 {
+                demoPlayed = true
+                playDemo()
+            }
+        }
         .onChange(of: amount) { _, newValue in
             displayedAmount = newValue
+        }
+    }
+
+    // MARK: - Demo Animation
+
+    private func playDemo() {
+        demoTask = Task { @MainActor in
+            // Start almost immediately
+            try? await Task.sleep(for: .seconds(0.15))
+            guard !Task.isCancelled else { return }
+
+            // Demo sequence: (buttonIndex, holdDuration)
+            // All holds are longer / more bills to make it exciting
+            let sequence: [(index: Int, holdDuration: Double)] = [
+                (2, 0.8),   // $20 — several bills
+                (0, 0.6),   // $5 — a few bills
+                (4, 2.0),   // $100 — long rapid fire
+                (1, 0.7),   // $10 — several bills
+                (3, 1.5),   // $50 — long hold
+            ]
+
+            for step in sequence {
+                guard !Task.isCancelled else { return }
+
+                // Press down
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    demoHighlightIndex = step.index
+                }
+
+                // Spawn flying bills during the hold — fast ticks for lots of bills
+                let denom = denominations[step.index]
+                let tickInterval: Double = 0.12
+                let tickCount = max(2, Int(step.holdDuration / tickInterval))
+
+                for tick in 0..<tickCount {
+                    guard !Task.isCancelled else { return }
+                    if tick > 0 {
+                        try? await Task.sleep(for: .seconds(tickInterval))
+                        guard !Task.isCancelled else { return }
+                    }
+                    // Spawn a demo flying bill (no amount added)
+                    if let frame = buttonFrames[step.index] {
+                        spawnDemoBill(denomination: denom, from: frame)
+                    }
+                }
+
+                // If hold is short, wait for remaining duration
+                let elapsed = Double(tickCount) * tickInterval
+                if elapsed < step.holdDuration {
+                    try? await Task.sleep(for: .seconds(step.holdDuration - elapsed))
+                }
+
+                // Release
+                withAnimation(.easeOut(duration: 0.2)) {
+                    demoHighlightIndex = nil
+                }
+
+                // Pause between presses
+                try? await Task.sleep(for: .seconds(0.5))
+            }
+        }
+    }
+
+    private func spawnDemoBill(denomination: Int, from frame: CGRect) {
+        SoundManager.shared.playBillTap()
+        let bill = FlyingBill(
+            denomination: denomination,
+            startX: frame.midX,
+            startY: frame.minY,
+            endY: frame.minY - 200,
+            drift: CGFloat.random(in: -30...30),
+            rotation: Double.random(in: -20...20)
+        )
+        flyingBills.append(bill)
+        let billId = bill.id
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            flyingBills.removeAll { $0.id == billId }
+        }
+    }
+
+    private func stopDemo() {
+        demoTask?.cancel()
+        demoTask = nil
+        withAnimation(.easeOut(duration: 0.2)) {
+            demoHighlightIndex = nil
         }
     }
 
     // MARK: - Add Bill
 
     private func addBill(denomination: Int, from buttonFrame: CGRect, in geo: GeometryProxy) {
+        // Stop demo on first real user interaction
+        if demoTask != nil { stopDemo() }
+
         amount += denomination
+        SoundManager.shared.playBillTap()
 
         // Haptic
         let generator = UIImpactFeedbackGenerator(style: denomination >= 50 ? .medium : .light)
@@ -164,7 +277,7 @@ struct BillCounterView<Buttons: View>: View {
         }
         buttonRevealTask?.cancel()
         buttonRevealTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.2))
+            try? await Task.sleep(for: .seconds(0.5))
             guard !Task.isCancelled else { return }
             withAnimation(.easeInOut(duration: 0.6)) { showButtons = true }
         }
@@ -224,6 +337,8 @@ private struct FlyingBillModifier: ViewModifier {
 private struct BillButton: View {
     let denomination: Int
     let color: Color
+    var isHighlighted: Bool = false
+    var onFrameChange: ((CGRect) -> Void)? = nil
     let onTap: (CGRect) -> Void
 
     @State private var isPressed = false
@@ -252,8 +367,13 @@ private struct BillButton: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 56)
-        .scaleEffect(isPressed ? 0.93 : 1.0)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Add $\(denomination)")
+        .accessibilityHint("Tap to add $\(denomination) to your budget. Hold for rapid entry.")
+        .accessibilityAddTraits(.isButton)
+        .scaleEffect(isPressed ? 0.93 : (isHighlighted ? 0.93 : 1.0))
         .animation(.spring(response: 0.15), value: isPressed)
+        .animation(.easeInOut(duration: 0.15), value: isHighlighted)
             .background(
                 GeometryReader { geo in
                     Color.clear.preference(
@@ -264,6 +384,7 @@ private struct BillButton: View {
             )
             .onPreferenceChange(ButtonFrameKey.self) { frame in
                 buttonFrame = frame
+                onFrameChange?(frame)
             }
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0)

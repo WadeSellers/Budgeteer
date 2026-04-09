@@ -88,6 +88,7 @@ struct PrivacyConsentView: View {
                 .frame(width: 38, height: 38)
                 .background(.white.opacity(0.2))
                 .clipShape(Circle())
+                .accessibilityHidden(true)
 
             Text(text)
                 .font(.subheadline)
@@ -96,5 +97,6 @@ struct PrivacyConsentView: View {
 
             Spacer(minLength: 0)
         }
+        .accessibilityElement(children: .combine)
     }
 }

@@ -8,14 +8,21 @@ struct ParsedTransaction {
 
 enum ClaudeError: LocalizedError {
     case networkUnavailable
+    case timeout
     case parsingFailed(String)
     case apiError(Int, String)
 
     var errorDescription: String? {
         switch self {
-        case .networkUnavailable:      return "No internet connection."
-        case .parsingFailed(let msg):  return "Could not parse purchase: \(msg)"
-        case .apiError(let c, let m):  return "API error \(c): \(m)"
+        case .networkUnavailable:      return "No internet connection. Your purchase will be saved when you're back online."
+        case .timeout:                 return "Request timed out. Please try again."
+        case .parsingFailed:           return "Couldn't understand that purchase. Try rephrasing it."
+        case .apiError(let c, _):
+            switch c {
+            case 429:                  return "Too many requests. Please wait a moment and try again."
+            case 500...599:            return "Server issue. Please try again shortly."
+            default:                   return "Something went wrong. Please try again."
+            }
         }
     }
 }
@@ -27,6 +34,11 @@ final class ClaudeService {
     private let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
 
     func parseTransaction(_ input: String) async throws -> ParsedTransaction {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw ClaudeError.parsingFailed("Empty input")
+        }
+
         var request = URLRequest(url: endpoint, timeoutInterval: 15)
         request.httpMethod = "POST"
         request.setValue(Secrets.claudeAPIKey, forHTTPHeaderField: "x-api-key")
@@ -79,6 +91,8 @@ final class ClaudeService {
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await URLSession.shared.data(for: request)
+        } catch let error as URLError where error.code == .timedOut {
+            throw ClaudeError.timeout
         } catch {
             throw ClaudeError.networkUnavailable
         }
@@ -94,6 +108,12 @@ final class ClaudeService {
             throw ClaudeError.apiError(http.statusCode, body)
         }
 
+        return try Self.parseResponse(data, fallbackDescription: input)
+    }
+
+    /// Parse the raw Claude API response `Data` into a `ParsedTransaction`.
+    /// Extracted so unit tests can exercise parsing without making network calls.
+    static func parseResponse(_ data: Data, fallbackDescription: String) throws -> ParsedTransaction {
         // Extract the text field from Claude's response envelope
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let content = json["content"] as? [[String: Any]],
@@ -118,7 +138,7 @@ final class ClaudeService {
 
         let amount = (parsed["amount"] as? Double) ??
                      Double(parsed["amount"] as? String ?? "") ?? 0
-        let description = parsed["description"] as? String ?? input
+        let description = parsed["description"] as? String ?? fallbackDescription
         let category    = parsed["category"]    as? String ?? "Other"
 
         guard amount > 0 else { throw ClaudeError.parsingFailed("Could not determine amount") }

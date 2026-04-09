@@ -66,6 +66,9 @@ struct TransactionToast: View {
             .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Saved \(transaction.formattedAmount) for \(transaction.transactionDescription)")
+        .accessibilityHint("Tap to edit this purchase")
         .padding(.horizontal, 20)
         .transition(.move(edge: .top).combined(with: .opacity))
     }

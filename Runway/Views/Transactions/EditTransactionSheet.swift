@@ -113,7 +113,11 @@ struct EditTransactionSheet: View {
                 transaction.amount = amount
                 transaction.transactionDescription = description
                 transaction.category = category
-                try? modelContext.save()
+                do {
+                    try modelContext.save()
+                } catch {
+                    print("[Budgeteer] edit save failed: \(error.localizedDescription)")
+                }
                 dismiss()
             } label: {
                 Text("Save Changes")
@@ -127,7 +131,11 @@ struct EditTransactionSheet: View {
 
             Button(role: .destructive) {
                 modelContext.delete(transaction)
-                try? modelContext.save()
+                do {
+                    try modelContext.save()
+                } catch {
+                    print("[Budgeteer] delete save failed: \(error.localizedDescription)")
+                }
                 onDelete?()
                 dismiss()
             } label: {

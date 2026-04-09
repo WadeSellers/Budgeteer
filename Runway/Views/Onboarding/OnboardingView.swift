@@ -17,22 +17,20 @@ struct OnboardingView: View {
     // Practice recording
     @State private var speechService      = SpeechService()
     @State private var practiceState:      PracticeState = .ready
-    @State private var isProcessing       = false
     @State private var showOverlay        = false
     @State private var overlayExpanded    = false
-    @State private var practiceResult:    PracticeResult?
     @State private var permissionDenied   = false
     @State private var pileHeight: CGFloat = 0
+    @State private var micPulsing         = false
+    @State private var idlePulseTask:     Task<Void, Never>?
+    @State private var holdStartTime:     Date?
+    @State private var showHoldHintToast  = false
 
     private enum PracticeState {
         case ready, recording, processing, done
     }
 
-    private struct PracticeResult {
-        let amount: Double
-        let description: String
-        let category: String
-    }
+    // Success overlay handled by ContentView
 
     var body: some View {
         ZStack {
@@ -48,8 +46,7 @@ struct OnboardingView: View {
                 case 0:  welcomeStep
                 case 1:  budgetStep
                 case 2:  consentStep
-                case 3:  practiceStep
-                default: successStep
+                default: practiceStep
                 }
             }
             .opacity(contentVisible ? 1 : 0)
@@ -69,10 +66,12 @@ struct OnboardingView: View {
             Image(systemName: "gauge.with.dots.needle.67percent")
                 .font(.system(size: 80))
                 .foregroundStyle(BudgeteerColors.green)
+                .accessibilityHidden(true)
 
             VStack(spacing: 12) {
                 Text("Budgeteer")
                     .font(.system(size: 52, weight: .bold, design: .rounded))
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 Text("Track your spending\nwith your voice.")
                     .font(.body)
                     .foregroundStyle(.secondary)
@@ -130,50 +129,55 @@ struct OnboardingView: View {
 
     private var practiceStep: some View {
         ZStack {
-            // Main content
+            // Main content — always present, hidden behind overlay when recording
             VStack(spacing: 0) {
                 Spacer()
 
-                if practiceState == .ready || practiceState == .recording {
-                    VStack(spacing: 16) {
-                        Text("Let's Try It")
-                            .font(.title2.weight(.bold))
-                        Text("Hold the button and say something like:")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Text("\"twelve dollars at Starbucks\"")
-                            .font(.body.weight(.medium).italic())
-                            .foregroundStyle(BudgeteerColors.green)
-                    }
-                    .multilineTextAlignment(.center)
-                    .opacity(overlayExpanded ? 0 : 1)
-                    .animation(.easeInOut(duration: 0.2), value: overlayExpanded)
-                }
+                VStack(spacing: 20) {
+                    Text("🎤")
+                        .font(.system(size: 48))
+                        .accessibilityHidden(true)
 
-                if practiceState == .processing {
-                    VStack(spacing: 12) {
-                        ProgressView()
-                            .scaleEffect(1.3)
-                            .tint(BudgeteerColors.green)
-                        Text("Processing…")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
+                    Text("Let's capture your\nfirst purchase!")
+                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                        .multilineTextAlignment(.center)
+
+                    Text("Think about the last thing you bought.\nHold the mic and say it out loud.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    Text("e.g. \"I spent twelve bucks at Chipotle\"")
+                        .font(.body.weight(.medium).italic())
+                        .foregroundStyle(BudgeteerColors.green)
+                        .padding(.top, 4)
                 }
 
                 Spacer()
 
                 // Mic button
                 if practiceState != .done {
-                    VStack(spacing: 10) {
+                    VStack(spacing: 16) {
+                        Text(practiceHint)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+
                         Button(action: {}) {
                             ZStack {
                                 Circle()
                                     .fill(overlayExpanded ? .clear : BudgeteerColors.green)
                                     .frame(width: 112, height: 112)
-                                    .shadow(color: overlayExpanded ? .clear : BudgeteerColors.green.opacity(0.5), radius: 20)
+                                    .shadow(color: overlayExpanded ? .clear : BudgeteerColors.green.opacity(0.5), radius: micPulsing ? 30 : 20)
+                                    .scaleEffect(micPulsing ? 1.08 : 1.0)
+                                    .animation(
+                                        micPulsing
+                                            ? .easeInOut(duration: 0.8).repeatForever(autoreverses: true)
+                                            : .easeOut(duration: 0.3),
+                                        value: micPulsing
+                                    )
 
-                                if isProcessing {
+                                if practiceState == .processing {
                                     ProgressView().tint(.white).scaleEffect(1.5)
                                 } else {
                                     Image(systemName: speechService.isRecording ? "waveform" : "mic.fill")
@@ -183,19 +187,44 @@ struct OnboardingView: View {
                             }
                         }
                         .buttonStyle(HoldButtonStyle(
-                            onPress: { startPractice() },
-                            onRelease: { stopPractice() }
+                            onPress: {
+                                guard practiceState == .ready else { return }
+                                micPulsing = false
+                                idlePulseTask?.cancel()
+                                holdStartTime = Date()
+                                // Start recording + overlay immediately (synchronous to avoid ghost circle)
+                                startPractice()
+                                showOverlay = true
+                                overlayExpanded = true
+                            },
+                            onRelease: {
+                                let held = Date().timeIntervalSince(holdStartTime ?? Date())
+                                if held < 0.4 {
+                                    // Quick tap — abort recording, collapse overlay, show hint
+                                    if speechService.isRecording {
+                                        speechService.stop()
+                                    }
+                                    practiceState = .ready
+                                    overlayExpanded = false
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                        showOverlay = false
+                                    }
+                                    showHoldHint()
+                                } else if speechService.isRecording {
+                                    stopPractice()
+                                }
+                            }
                         ))
-                        .disabled(isProcessing || practiceState == .done)
-
-                        Text(practiceHint)
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                            .opacity(overlayExpanded ? 0 : 1)
+                        .accessibilityLabel(practiceState == .processing ? "Processing your purchase" : practiceState == .recording ? "Recording, release to finish" : "Record a practice purchase")
+                        .accessibilityHint("Hold to record a purchase with your voice, release when done")
+                        .disabled(practiceState == .processing || practiceState == .done)
                     }
                     .padding(.bottom, 50)
+                    .onAppear { startIdlePulse() }
                 }
             }
+            .opacity(overlayExpanded ? 0 : 1)
+            .animation(.easeInOut(duration: 0.2), value: overlayExpanded)
 
             // Recording overlay
             if showOverlay {
@@ -203,67 +232,103 @@ struct OnboardingView: View {
                     transcript: speechService.transcript,
                     isWaitingForFinal: false,
                     recordingColor: BudgeteerColors.green,
-                    isExpanded: overlayExpanded
+                    isExpanded: overlayExpanded,
+                    showReleaseHint: true,
+                    showQuestionPrompt: true,
+                    micCenterFraction: 0.88
                 )
                 .environment(theme)
             }
+
+            // Hold hint toast — always present, driven by opacity
+            Text("Hold the mic button to record")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.15))
+                )
+                .opacity(showHoldHintToast ? 1 : 0)
+                .animation(.easeInOut(duration: 0.25), value: showHoldHintToast)
+                .accessibilityHidden(!showHoldHintToast)
+                .zIndex(20)
         }
         .onChange(of: speechService.isRecording) { _, isRecording in
             guard !isRecording, practiceState == .recording else { return }
             let text = speechService.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
             processPractice(text)
         }
-        .onChange(of: practiceState) { _, state in
-            if state == .recording {
-                showOverlay = true
-                DispatchQueue.main.async { overlayExpanded = true }
-            } else if state != .recording && showOverlay {
-                overlayExpanded = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
-                    showOverlay = false
-                }
-            }
-        }
     }
 
     private var practiceHint: String {
         switch practiceState {
-        case .ready:      "Hold to speak"
+        case .ready:      "Hold to record, release when done"
         case .recording:  "Release when done"
-        case .processing: "Thinking…"
-        case .done:       ""
+        default:          ""
+        }
+    }
+
+    private func showHoldHint() {
+        showHoldHintToast = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            showHoldHintToast = false
+        }
+        startIdlePulse()
+    }
+
+    private func startIdlePulse() {
+        idlePulseTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled, practiceState == .ready else { return }
+            micPulsing = true
         }
     }
 
     private func startPractice() {
         guard practiceState == .ready else { return }
+        SoundManager.shared.playRecordingStart()
         do {
             try speechService.start()
+            // If recognizer wasn't available, start() returns without throwing
+            // but sets lastError — check for that
+            if let err = speechService.lastError {
+                print("[Budgeteer] speech start issue: \(err)")
+                practiceState = .ready
+                return
+            }
             practiceState = .recording
         } catch {
-            // Permission denied — shouldn't happen since we checked in step 2
+            print("[Budgeteer] speech start failed: \(error.localizedDescription)")
+            practiceState = .ready
         }
     }
 
     private func stopPractice() {
         guard speechService.isRecording else { return }
+        SoundManager.shared.playRecordingCaptured()
         speechService.stop()
     }
 
     private func processPractice(_ transcript: String) {
         guard !transcript.isEmpty else {
             practiceState = .ready
+            // Collapse overlay since nothing was said
+            overlayExpanded = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                showOverlay = false
+            }
             return
         }
 
         practiceState = .processing
-        isProcessing  = true
 
         Task {
             do {
                 let result = try await ClaudeService.shared.parseTransaction(transcript)
                 await MainActor.run {
-                    // Save the practice transaction for real
+                    // Save the real transaction
                     let t = Transaction(
                         amount: result.amount,
                         transactionDescription: result.description,
@@ -271,71 +336,33 @@ struct OnboardingView: View {
                         timestamp: .now
                     )
                     modelContext.insert(t)
-                    try? modelContext.save()
+                    do {
+                        try modelContext.save()
+                    } catch {
+                        print("[Budgeteer] onboarding save failed: \(error.localizedDescription)")
+                    }
 
-                    practiceResult = PracticeResult(
-                        amount: result.amount,
-                        description: result.description,
-                        category: result.category
-                    )
-                    isProcessing  = false
                     practiceState = .done
+                    SoundManager.shared.playPurchaseSaved()
 
-                    // Auto-advance to success step
+                    // Keep the green overlay expanded — it's the curtain.
+                    // Signal ContentView to swap to MainView behind it, then drop the curtain.
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        goToStep(4)
+                        UserDefaults.standard.set(true, forKey: "showOnboardingComplete")
+                        hasCompletedOnboarding = true
                     }
                 }
             } catch {
                 await MainActor.run {
-                    isProcessing  = false
-                    practiceState = .ready
-                }
-            }
-        }
-    }
-
-    // MARK: - Step 4: Success
-
-    private var successStep: some View {
-        VStack(spacing: 32) {
-            Spacer()
-
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 72))
-                .foregroundStyle(BudgeteerColors.green)
-
-            VStack(spacing: 12) {
-                Text("You're All Set")
-                    .font(.system(size: 36, weight: .bold, design: .rounded))
-
-                if let result = practiceResult {
-                    VStack(spacing: 4) {
-                        Text(String(format: "$%.2f", result.amount))
-                            .font(.system(size: 28, weight: .semibold, design: .rounded))
-                            .foregroundStyle(BudgeteerColors.green)
-                        Text(result.description)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                    // If API fails, still proceed to main screen
+                    practiceState = .done
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        UserDefaults.standard.set(true, forKey: "showOnboardingComplete")
+                        hasCompletedOnboarding = true
                     }
-                    .padding(.top, 8)
                 }
-
-                Text("That's it. Hold to record,\ncheck your budget anytime.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 8)
             }
-
-            Spacer()
-
-            primaryButton("Start Using Budgeteer") {
-                hasCompletedOnboarding = true
-            }
-            .padding(.bottom, 40)
         }
-        .padding(.horizontal, 32)
     }
 
     // MARK: - Reusable Buttons

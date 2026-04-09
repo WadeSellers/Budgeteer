@@ -1,19 +1,5 @@
 import SwiftUI
 
-// MARK: - Consent Phase
-
-private enum ConsentPhase: Int, Comparable {
-    case waiting = -1
-    case voice = 0
-    case ai = 1
-    case ready = 2
-    case done = 3
-
-    static func < (lhs: ConsentPhase, rhs: ConsentPhase) -> Bool {
-        lhs.rawValue < rhs.rawValue
-    }
-}
-
 // MARK: - Consent Animation View
 
 struct ConsentAnimationView: View {
@@ -23,46 +9,211 @@ struct ConsentAnimationView: View {
     let onSkip: () -> Void
     let onBack: () -> Void
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    @State private var phase: ConsentPhase = .waiting
-    @State private var autoAdvanceTask: Task<Void, Never>?
+    // Animation phases
+    @State private var titleVisible = false
+    @State private var showMic = false
+    @State private var showWaveform = false
+    @State private var waveformPulsing = false
+    @State private var showTranscript = false
+    @State private var typedCharCount = 0
+    @State private var showAIProcessing = false
+    @State private var scanProgress: CGFloat = 0
+    @State private var showParsedResult = false
+    @State private var robotWorking = false
+    @State private var badge1 = false
+    @State private var badge2 = false
+    @State private var badge3 = false
+    @State private var showReassurance = false
     @State private var showButtons = false
 
+    @State private var autoTask: Task<Void, Never>?
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let transcriptText = "uh I spent like eight bucks at Starbucks this morning"
+
     var body: some View {
-        if reduceMotion {
-            staticFallback
-        } else {
-            animatedFlow
-        }
-    }
-
-    // MARK: - Animated Flow
-
-    private var animatedFlow: some View {
         VStack(spacing: 0) {
             Spacer()
 
             // Title
-            Text("Before You Record")
-                .font(.title2.weight(.bold))
-                .opacity(phase >= .voice ? 1 : 0)
-                .animation(.easeOut(duration: 0.5), value: phase)
-                .padding(.bottom, 52)
+            Text("Here's How We Use AI")
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+                .multilineTextAlignment(.center)
+                .opacity(titleVisible ? 1 : 0)
+                .offset(y: titleVisible ? 0 : 15)
+                .animation(.easeOut(duration: 0.6), value: titleVisible)
+                .padding(.bottom, 48)
 
-            // Three phase rows
-            VStack(spacing: 44) {
-                VoicePhaseRow(isActive: phase >= .voice)
-                AIPhaseRow(isActive: phase >= .ai)
-                ReadyPhaseRow(isActive: phase >= .ready)
+            // The Story
+            VStack(spacing: 24) {
+
+                // Stage 1: Mic + waveform — "You speak a purchase"
+                if showMic {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(BudgeteerColors.green.opacity(0.15))
+                                .frame(width: 52, height: 52)
+
+                            Image(systemName: "mic.fill")
+                                .font(.system(size: 22))
+                                .foregroundStyle(BudgeteerColors.green)
+                        }
+
+                        if showWaveform {
+                            HStack(spacing: 3) {
+                                ForEach(0..<7, id: \.self) { i in
+                                    let heights: [CGFloat] = [10, 20, 14, 24, 12, 18, 8]
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .fill(BudgeteerColors.green.opacity(0.6))
+                                        .frame(width: 3, height: waveformPulsing ? heights[i] : 4)
+                                        .animation(
+                                            .easeInOut(duration: Double.random(in: 0.3...0.5))
+                                            .repeatForever(autoreverses: true)
+                                            .delay(Double(i) * 0.07),
+                                            value: waveformPulsing
+                                        )
+                                }
+                            }
+                            .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                        }
+
+                        Text("You speak a purchase")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+                    }
+                    .transition(.opacity.combined(with: .offset(y: 12)))
+                }
+
+                // Stage 2: Typewriter transcript
+                if showTranscript {
+                    VStack(spacing: 0) {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.primary.opacity(0.06))
+                            .frame(height: 52)
+                            .overlay(
+                                Text(typewriterString)
+                                    .font(.system(size: 14, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(.primary.opacity(0.7))
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 14)
+                            )
+                            .overlay(
+                                // Scanning highlight over transcript
+                                GeometryReader { geo in
+                                    if showAIProcessing && !showParsedResult {
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .fill(
+                                                LinearGradient(
+                                                    colors: [
+                                                        BudgeteerColors.green.opacity(0),
+                                                        BudgeteerColors.green.opacity(0.15),
+                                                        BudgeteerColors.green.opacity(0)
+                                                    ],
+                                                    startPoint: .leading,
+                                                    endPoint: .trailing
+                                                )
+                                            )
+                                            .frame(width: 80)
+                                            .offset(x: scanProgress * (geo.size.width + 80) - 80)
+                                    }
+                                }
+                                .clipped()
+                            )
+                    }
+                    .transition(.opacity.combined(with: .offset(y: 12)))
+                }
+
+                // Stage 3: AI processing → parsed result
+                if showAIProcessing {
+                    VStack(spacing: 16) {
+                        // AI label row
+                        HStack(spacing: 10) {
+                            ZStack {
+                                Circle()
+                                    .fill(BudgeteerColors.green.opacity(0.15))
+                                    .frame(width: 44, height: 44)
+
+                                Text("🤖")
+                                    .font(.system(size: 22))
+                                    .rotationEffect(.degrees(robotWorking ? -12 : 12))
+                                    .scaleEffect(robotWorking ? 1.15 : 0.9)
+                                    .animation(
+                                        showParsedResult
+                                            ? .spring(response: 0.3)
+                                            : .easeInOut(duration: 0.32).repeatForever(autoreverses: true),
+                                        value: robotWorking
+                                    )
+                            }
+
+                            Text("AI grabs the important parts" + (showParsedResult ? "" : "…"))
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.secondary)
+
+                            Spacer()
+                        }
+
+                        // Badges — full width row, staggered appearance
+                        if showParsedResult {
+                            HStack(spacing: 12) {
+                                if badge1 {
+                                    parsedBadge("$8.00", highlight: true)
+                                        .transition(.scale(scale: 0.5).combined(with: .opacity))
+                                }
+                                if badge2 {
+                                    parsedBadge("Starbucks", highlight: false)
+                                        .transition(.scale(scale: 0.5).combined(with: .opacity))
+                                }
+                                if badge3 {
+                                    parsedBadge("Food", highlight: false)
+                                        .transition(.scale(scale: 0.5).combined(with: .opacity))
+                                }
+                                Spacer()
+                            }
+                            .padding(.leading, 4)
+                        }
+                    }
+                    .transition(.opacity.combined(with: .offset(y: 12)))
+                }
             }
             .padding(.horizontal, 8)
+
+            // Permissions preview
+            if showReassurance {
+                VStack(spacing: 10) {
+                    Text("To make this work, we'll need your\npermission to use the microphone\nand speech recognition.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    HStack(spacing: 6) {
+                        Image(systemName: "lock.shield.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(BudgeteerColors.green)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Your voice stays on your phone.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                            Text("Only the text is sent.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+                .padding(.top, 32)
+                .transition(.opacity)
+            }
 
             Spacer()
             Spacer()
 
             // Privacy policy link
-            if phase == .done {
+            if showButtons {
                 Button {
                     if let url = URL(string: "https://wadesellers.github.io/Budgeteer/privacy") {
                         UIApplication.shared.open(url)
@@ -91,72 +242,124 @@ struct ConsentAnimationView: View {
             }
         }
         .padding(.horizontal, 32)
-        .contentShape(Rectangle())
-        .onTapGesture { advancePhase() }
         .onAppear { startSequence() }
-        .onDisappear { autoAdvanceTask?.cancel() }
+        .onDisappear { autoTask?.cancel() }
+    }
+
+    // MARK: - Typewriter
+
+    private var typewriterString: String {
+        let count = min(typedCharCount, transcriptText.count)
+        let index = transcriptText.index(transcriptText.startIndex, offsetBy: count)
+        return "\"" + String(transcriptText[..<index]) + (count < transcriptText.count ? "▌" : "\"")
+    }
+
+    private func runTypewriter() async {
+        for i in 1...transcriptText.count {
+            try? await Task.sleep(for: .seconds(Double.random(in: 0.03...0.06)))
+            guard !Task.isCancelled else { return }
+            typedCharCount = i
+        }
+    }
+
+    // MARK: - Scan Animation
+
+    private func runScanAnimation() async {
+        // Run 2 scan passes
+        for _ in 0..<2 {
+            guard !Task.isCancelled else { return }
+            scanProgress = 0
+            withAnimation(.easeInOut(duration: 0.8)) {
+                scanProgress = 1
+            }
+            try? await Task.sleep(for: .seconds(0.9))
+        }
     }
 
     // MARK: - Sequencing
 
     private func startSequence() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                phase = .voice
-            }
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            scheduleAutoAdvance(delay: 3.5)
+        // When Reduce Motion is on, show all content immediately without
+        // staggered animation delays, keeping the page readable.
+        if reduceMotion {
+            titleVisible = true
+            showMic = true
+            showWaveform = true
+            showTranscript = true
+            typedCharCount = transcriptText.count
+            showAIProcessing = true
+            showParsedResult = true
+            badge1 = true
+            badge2 = true
+            badge3 = true
+            showReassurance = true
+            showButtons = true
+            return
         }
-    }
 
-    private func scheduleAutoAdvance(delay: Double) {
-        autoAdvanceTask?.cancel()
-        autoAdvanceTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(delay))
-            guard !Task.isCancelled else { return }
-            advancePhase()
-        }
-    }
+        autoTask = Task { @MainActor in
+            // Title
+            try? await Task.sleep(for: .seconds(0.3))
+            withAnimation(.easeOut(duration: 0.5)) { titleVisible = true }
 
-    private func advancePhase() {
-        autoAdvanceTask?.cancel()
+            // Mic appears
+            try? await Task.sleep(for: .seconds(0.5))
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) { showMic = true }
 
-        switch phase {
-        case .waiting:
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                phase = .voice
-            }
+            // Waveform starts
+            try? await Task.sleep(for: .seconds(0.4))
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { showWaveform = true }
+            try? await Task.sleep(for: .seconds(0.15))
+            waveformPulsing = true
+
+            // Transcript with typewriter effect
+            try? await Task.sleep(for: .seconds(0.8))
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) { showTranscript = true }
+            try? await Task.sleep(for: .seconds(0.3))
+            await runTypewriter()
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            scheduleAutoAdvance(delay: 3.5)
 
-        case .voice:
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                phase = .ai
-            }
+            // AI processing with scan + robot animation
+            try? await Task.sleep(for: .seconds(0.6))
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) { showAIProcessing = true }
+            try? await Task.sleep(for: .seconds(0.2))
+            robotWorking = true
+            try? await Task.sleep(for: .seconds(0.2))
+            await runScanAnimation()
+
+            // Stop robot wiggle, show badges
+            robotWorking = false
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.65)) { showParsedResult = true }
+            try? await Task.sleep(for: .seconds(0.05))
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.65)) { badge1 = true }
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            scheduleAutoAdvance(delay: 3.5)
-
-        case .ai:
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                phase = .ready
-            }
+            try? await Task.sleep(for: .seconds(0.15))
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.65)) { badge2 = true }
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            try? await Task.sleep(for: .seconds(0.15))
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.65)) { badge3 = true }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            scheduleAutoAdvance(delay: 3.0)
 
-        case .ready:
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                phase = .done
-            }
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(0.8))
-                withAnimation(.easeOut(duration: 0.6)) {
-                    showButtons = true
-                }
-            }
+            // Reassurance
+            try? await Task.sleep(for: .seconds(0.8))
+            withAnimation(.easeOut(duration: 0.6)) { showReassurance = true }
 
-        case .done:
-            break
+            // Buttons
+            try? await Task.sleep(for: .seconds(0.6))
+            withAnimation(.easeOut(duration: 0.5)) { showButtons = true }
         }
+    }
+
+    // MARK: - Parsed Badge
+
+    private func parsedBadge(_ text: String, highlight: Bool) -> some View {
+        Text(text)
+            .font(.system(size: 15, weight: .bold, design: .rounded))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(highlight ? BudgeteerColors.green.opacity(0.2) : BudgeteerColors.green.opacity(0.12))
+            .foregroundStyle(BudgeteerColors.green)
+            .clipShape(Capsule())
     }
 
     // MARK: - Buttons
@@ -192,348 +395,6 @@ struct ConsentAnimationView: View {
             Button("Skip — I'll use the keyboard", action: onSkip)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    // MARK: - Static Fallback (Reduce Motion)
-
-    private var staticFallback: some View {
-        VStack(spacing: 0) {
-            Spacer()
-
-            Text("Before You Record")
-                .font(.title2.weight(.bold))
-                .padding(.bottom, 36)
-
-            VStack(spacing: 28) {
-                staticRow(leftIcon: "waveform", text: "Voice stays here", rightIcon: "iphone")
-                staticRow(leftIcon: "cpu", text: "AI finds the details", rightIcon: "sparkles")
-                staticRow(leftIcon: "mic.fill", text: "Ready? Hold to speak", rightIcon: "circle.fill")
-            }
-            .padding(.horizontal, 8)
-
-            Spacer()
-
-            VStack(spacing: 12) {
-                continueButton
-                if permissionDenied {
-                    permissionDeniedViews
-                }
-                backButton
-            }
-            .padding(.bottom, 40)
-        }
-        .padding(.horizontal, 32)
-    }
-
-    private func staticRow(leftIcon: String, text: String, rightIcon: String) -> some View {
-        HStack(spacing: 16) {
-            Image(systemName: leftIcon)
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(BudgeteerColors.green)
-                .frame(width: 48, height: 48)
-                .background(BudgeteerColors.green.opacity(0.12))
-                .clipShape(Circle())
-
-            Text(text)
-                .font(.subheadline.weight(.semibold))
-
-            Spacer(minLength: 0)
-
-            Image(systemName: rightIcon)
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(BudgeteerColors.green)
-                .frame(width: 48, height: 48)
-                .background(BudgeteerColors.green.opacity(0.12))
-                .clipShape(Circle())
-        }
-    }
-}
-
-// MARK: - Phase 1: Voice stays on-device
-
-private struct VoicePhaseRow: View {
-    let isActive: Bool
-
-    @State private var waveformPulsing = false
-    @State private var waveformCollapsed = false
-    @State private var textVisible = false
-    @State private var rightIconVisible = false
-    @State private var waveformInPhone = false
-
-    private let barHeights: [CGFloat] = [16, 26, 12, 22, 14]
-
-    var body: some View {
-        HStack(spacing: 16) {
-            // LEFT: Waveform → morphs to "Aa"
-            ZStack {
-                Circle()
-                    .fill(BudgeteerColors.green.opacity(0.12))
-                    .frame(width: 48, height: 48)
-
-                if !waveformCollapsed {
-                    HStack(spacing: 3) {
-                        ForEach(0..<5, id: \.self) { i in
-                            RoundedRectangle(cornerRadius: 1.5)
-                                .fill(BudgeteerColors.green)
-                                .frame(width: 3, height: waveformPulsing ? barHeights[i] : 4)
-                                .animation(
-                                    .easeInOut(duration: Double.random(in: 0.25...0.35))
-                                    .repeatCount(7, autoreverses: true)
-                                    .delay(Double(i) * 0.06),
-                                    value: waveformPulsing
-                                )
-                        }
-                    }
-                    .transition(.opacity)
-                } else {
-                    Text("Aa")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundStyle(BudgeteerColors.green)
-                        .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .scaleEffect(isActive ? 1 : 0.5)
-            .opacity(isActive ? 1 : 0)
-            .animation(.spring(response: 0.5, dampingFraction: 0.7), value: isActive)
-
-            // CENTER: Label
-            Text("Voice stays here")
-                .font(.subheadline.weight(.semibold))
-                .opacity(textVisible ? 1 : 0)
-                .animation(.easeOut(duration: 0.5), value: textVisible)
-
-            Spacer(minLength: 0)
-
-            // RIGHT: Phone with waveform contained inside
-            ZStack {
-                Circle()
-                    .fill(BudgeteerColors.green.opacity(0.12))
-                    .frame(width: 48, height: 48)
-
-                // Phone outline
-                Image(systemName: "iphone")
-                    .font(.system(size: 22, weight: .light))
-                    .foregroundStyle(BudgeteerColors.green.opacity(0.5))
-
-                // Mini waveform inside the phone
-                if waveformInPhone {
-                    HStack(spacing: 2) {
-                        ForEach(0..<3, id: \.self) { i in
-                            RoundedRectangle(cornerRadius: 1)
-                                .fill(BudgeteerColors.green)
-                                .frame(width: 2, height: CGFloat([6, 10, 7][i]))
-                        }
-                    }
-                    .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .scaleEffect(rightIconVisible ? 1 : 0.5)
-            .opacity(rightIconVisible ? 1 : 0)
-            .animation(.spring(response: 0.5, dampingFraction: 0.7), value: rightIconVisible)
-        }
-        .frame(height: 52)
-        .opacity(isActive ? 1 : 0)
-        .onChange(of: isActive) { _, active in
-            guard active else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                waveformPulsing = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                textVisible = true
-            }
-            // Right icon appears after a beat
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                rightIconVisible = true
-            }
-            // Waveform appears inside phone
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    waveformInPhone = true
-                }
-            }
-            // Left waveform collapses to "Aa"
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    waveformCollapsed = true
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Phase 2: AI extracts details
-
-private struct AIPhaseRow: View {
-    let isActive: Bool
-
-    @State private var iconState: Int = 0  // 0=text.quote, 1=processing, 2=done
-    @State private var textVisible = false
-    @State private var showBadges = false
-
-    var body: some View {
-        HStack(spacing: 16) {
-            // LEFT: Text → CPU processing
-            ZStack {
-                Circle()
-                    .fill(BudgeteerColors.green.opacity(0.12))
-                    .frame(width: 48, height: 48)
-
-                if iconState == 0 {
-                    Image(systemName: "text.quote")
-                        .font(.system(size: 19, weight: .medium))
-                        .foregroundStyle(BudgeteerColors.green)
-                        .transition(.opacity)
-                } else {
-                    Image(systemName: "cpu")
-                        .font(.system(size: 19, weight: .medium))
-                        .foregroundStyle(BudgeteerColors.green)
-                        .rotationEffect(.degrees(iconState == 1 ? 360 : 0))
-                        .animation(.easeInOut(duration: 0.7), value: iconState)
-                        .transition(.opacity)
-                }
-            }
-            .scaleEffect(isActive ? 1 : 0.5)
-            .opacity(isActive ? 1 : 0)
-            .animation(.spring(response: 0.5, dampingFraction: 0.7), value: isActive)
-
-            // CENTER: Label
-            Text("AI finds the details")
-                .font(.subheadline.weight(.semibold))
-                .opacity(textVisible ? 1 : 0)
-                .animation(.easeOut(duration: 0.5), value: textVisible)
-
-            Spacer(minLength: 0)
-
-            // RIGHT: Parsed result badges
-            ZStack {
-                Circle()
-                    .fill(BudgeteerColors.green.opacity(showBadges ? 0.2 : 0.12))
-                    .frame(width: 48, height: 48)
-                    .animation(.easeOut(duration: 0.3), value: showBadges)
-
-                if !showBadges {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 19, weight: .medium))
-                        .foregroundStyle(BudgeteerColors.green.opacity(0.4))
-                        .transition(.opacity)
-                } else {
-                    VStack(spacing: 2) {
-                        Text("$12")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                        Text("☕️")
-                            .font(.system(size: 11))
-                    }
-                    .foregroundStyle(BudgeteerColors.green)
-                    .transition(.scale.combined(with: .opacity))
-                }
-            }
-            .scaleEffect(isActive ? 1 : 0.5)
-            .opacity(isActive ? 1 : 0)
-            .animation(.spring(response: 0.5, dampingFraction: 0.7), value: isActive)
-        }
-        .frame(height: 52)
-        .opacity(isActive ? 1 : 0)
-        .onChange(of: isActive) { _, active in
-            guard active else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    iconState = 1
-                }
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                textVisible = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    iconState = 2
-                }
-            }
-            // Badges appear on right
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.65)) {
-                    showBadges = true
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Phase 3: Ready to record
-
-private struct ReadyPhaseRow: View {
-    let isActive: Bool
-
-    @State private var textVisible = false
-    @State private var rightPulsing = false
-    @State private var micBounced = false
-
-    var body: some View {
-        HStack(spacing: 16) {
-            // LEFT: Mic icon
-            ZStack {
-                Circle()
-                    .fill(BudgeteerColors.green.opacity(0.12))
-                    .frame(width: 48, height: 48)
-
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(BudgeteerColors.green)
-                    .scaleEffect(micBounced ? 1.0 : 0.8)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.5), value: micBounced)
-            }
-            .scaleEffect(isActive ? 1 : 0.5)
-            .opacity(isActive ? 1 : 0)
-            .animation(.spring(response: 0.5, dampingFraction: 0.7), value: isActive)
-
-            // CENTER: Label
-            Text("Ready? Hold to speak")
-                .font(.subheadline.weight(.semibold))
-                .opacity(textVisible ? 1 : 0)
-                .animation(.easeOut(duration: 0.5), value: textVisible)
-
-            Spacer(minLength: 0)
-
-            // RIGHT: Pulsing green circle (preview of recording)
-            ZStack {
-                // Pulse ring
-                Circle()
-                    .stroke(BudgeteerColors.green.opacity(0.2), lineWidth: 2)
-                    .frame(width: 48, height: 48)
-                    .scaleEffect(rightPulsing ? 1.3 : 1.0)
-                    .opacity(rightPulsing ? 0 : 0.6)
-                    .animation(
-                        .easeOut(duration: 1.2)
-                        .repeatForever(autoreverses: false),
-                        value: rightPulsing
-                    )
-
-                Circle()
-                    .fill(BudgeteerColors.green.opacity(0.15))
-                    .frame(width: 48, height: 48)
-
-                Circle()
-                    .fill(BudgeteerColors.green)
-                    .frame(width: 20, height: 20)
-            }
-            .scaleEffect(isActive ? 1 : 0.5)
-            .opacity(isActive ? 1 : 0)
-            .animation(.spring(response: 0.5, dampingFraction: 0.7), value: isActive)
-        }
-        .frame(height: 52)
-        .opacity(isActive ? 1 : 0)
-        .onChange(of: isActive) { _, active in
-            guard active else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                micBounced = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                textVisible = true
-            }
-            // Start the pulse ring
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                rightPulsing = true
-            }
         }
     }
 }

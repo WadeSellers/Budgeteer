@@ -6,6 +6,7 @@ struct BudgeteerApp: App {
     @State private var budgetManager  = BudgetManager()
     @State private var networkMonitor = NetworkMonitor()
     @State private var themeManager   = ThemeManager()
+    @State private var hintManager    = HintManager()
 
     var body: some Scene {
         WindowGroup {
@@ -14,6 +15,7 @@ struct BudgeteerApp: App {
                 .environment(budgetManager)
                 .environment(networkMonitor)
                 .environment(themeManager)
+                .environment(hintManager)
         }
     }
 }

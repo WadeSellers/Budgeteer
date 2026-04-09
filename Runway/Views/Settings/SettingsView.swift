@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(BudgetManager.self) private var budgetManager
     @Environment(ThemeManager.self)  private var theme
+    @Environment(HintManager.self)   private var hintManager
 
     @State private var budgetText        = ""
     @State private var wasCancelled      = false
@@ -13,6 +14,7 @@ struct SettingsView: View {
     @State private var devConfirmation:  String?
     @State private var alertsEnabled     = false
     @State private var alertsDenied      = false
+    @AppStorage("soundEnabled") private var soundEnabled = true
 
     @FocusState private var budgetFocused: Bool
 
@@ -99,6 +101,15 @@ struct SettingsView: View {
                             .foregroundStyle(.tertiary)
                     }
 
+                    // Sounds
+                    Section {
+                        Toggle("Sounds", isOn: $soundEnabled)
+                            .tint(BudgeteerColors.green)
+                            .listRowBackground(theme.card)
+                    } header: {
+                        Text("Sounds").foregroundStyle(.secondary)
+                    }
+
                     // Privacy
                     Section {
                         Button {
@@ -127,6 +138,10 @@ struct SettingsView: View {
                             }
                             devButton("Reset Onboarding") {
                                 UserDefaults.standard.removeObject(forKey: "hasCompletedOnboarding")
+                                UserDefaults.standard.removeObject(forKey: "showOnboardingComplete")
+                            }
+                            devButton("Reset Hints") {
+                                hintManager.resetAllHints()
                             }
                             devButton("Delete All Transactions", destructive: true) {
                                 // Placeholder

@@ -20,7 +20,7 @@ private struct MoneyParticle: Identifiable {
     static func random() -> MoneyParticle {
         let symbols = ["$", "$", "$", "💵", "💰"]  // weighted toward $
         return MoneyParticle(
-            symbol: symbols.randomElement()!,
+            symbol: symbols.randomElement() ?? "$",
             size: CGFloat.random(in: 18...36),
             xFraction: CGFloat.random(in: 0.05...0.95),
             fallDuration: Double.random(in: 3.5...6.0),
@@ -124,14 +124,14 @@ struct MoneyRainView: View {
 
     private func seedInitialParticles(screenHeight H: CGFloat) {
         // Spawn particles already mid-fall so rain is visible immediately
-        for _ in 0..<10 {
+        for _ in 0..<14 {
             var p = MoneyParticle.random()
             p.isFalling = true
-            p.initialY = CGFloat.random(in: 0...(H * 0.7))  // scattered across screen
+            p.initialY = CGFloat.random(in: (-50)...(H * 0.75))  // scattered across screen
             particles.append(p)
 
             // Remove after remaining fall time
-            let fractionRemaining = 1.0 - Double(p.initialY / H)
+            let fractionRemaining = max(0.1, 1.0 - Double(p.initialY / H))
             let remainingDuration = p.fallDuration * fractionRemaining
             let pid = p.id
             DispatchQueue.main.asyncAfter(deadline: .now() + remainingDuration + 0.3) {
@@ -143,7 +143,7 @@ struct MoneyRainView: View {
     private func startRain() {
         guard timer == nil else { return }
 
-        timer = Timer.scheduledTimer(withTimeInterval: 0.45, repeats: true) { _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: true) { _ in
             Task { @MainActor in
                 if particles.count >= maxParticles {
                     particles.removeFirst()
@@ -202,7 +202,7 @@ struct MoneyRainView: View {
                 let y = pileFrameHeight - heightInPile
 
                 pileItems.append(PileItem(
-                    symbol: symbols.randomElement()!,
+                    symbol: symbols.randomElement() ?? "$",
                     size: CGFloat.random(in: 14...22),
                     x: x,
                     y: y,
@@ -223,7 +223,7 @@ struct MoneyRainView: View {
             let y = pileFrameHeight - heightInPile
 
             pileItems.append(PileItem(
-                symbol: symbols.randomElement()!,
+                symbol: symbols.randomElement() ?? "$",
                 size: CGFloat.random(in: 12...18),
                 x: x,
                 y: y,
