@@ -111,6 +111,100 @@ final class ClaudeService {
         return try Self.parseResponse(data, fallbackDescription: input)
     }
 
+    // MARK: - Town Hall Post Summary
+
+    struct PostSummary {
+        let title: String
+        let summary: String
+    }
+
+    func generatePostSummary(transcript: String, type: String) async throws -> PostSummary {
+        let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return PostSummary(title: "Voice note", summary: trimmed)
+        }
+
+        var request = URLRequest(url: endpoint, timeoutInterval: 10)
+        request.httpMethod = "POST"
+        request.setValue(Secrets.claudeAPIKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+
+        let prompt = """
+        You are processing a voice message from a user of a budgeting app called Budgeteer.
+        The message is a \(type) from the community's Town Hall.
+
+        User's transcript (raw speech-to-text, may contain filler words):
+        "\(trimmed)"
+
+        Return ONLY a JSON object with:
+        - "title": A short, punchy title (max 6 words). Be specific to what they said.
+        - "summary": A clean, readable 1-2 sentence version of what they said. \
+        Remove filler words (uh, um, like, you know), fix grammar, keep their meaning. \
+        This should read like a well-written tweet.
+
+        Return ONLY the JSON, no markdown, no explanation.
+        """
+
+        let body: [String: Any] = [
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 100,
+            "messages": [["role": "user", "content": prompt]]
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch let error as URLError where error.code == .timedOut {
+            throw ClaudeError.timeout
+        } catch {
+            throw ClaudeError.networkUnavailable
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw ClaudeError.apiError(0, "Invalid response")
+        }
+        guard http.statusCode == 200 else {
+            let body = String(data: data, encoding: .utf8) ?? "unknown"
+            throw ClaudeError.apiError(http.statusCode, body)
+        }
+
+        return try Self.parseSummaryResponse(data, fallbackTranscript: trimmed)
+    }
+
+    static func parseSummaryResponse(_ data: Data, fallbackTranscript: String) throws -> PostSummary {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let content = json["content"] as? [[String: Any]],
+              let textBlock = content.first(where: { $0["type"] as? String == "text" }),
+              let responseText = textBlock["text"] as? String else {
+            return PostSummary(
+                title: String(fallbackTranscript.prefix(40)),
+                summary: fallbackTranscript
+            )
+        }
+
+        var cleaned = responseText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.hasPrefix("```") {
+            cleaned = cleaned
+                .replacingOccurrences(of: "```json", with: "")
+                .replacingOccurrences(of: "```", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        guard let parsedData = cleaned.data(using: .utf8),
+              let parsed = try? JSONSerialization.jsonObject(with: parsedData) as? [String: Any] else {
+            return PostSummary(
+                title: String(fallbackTranscript.prefix(40)),
+                summary: fallbackTranscript
+            )
+        }
+
+        let title = parsed["title"] as? String ?? String(fallbackTranscript.prefix(40))
+        let summary = parsed["summary"] as? String ?? fallbackTranscript
+        return PostSummary(title: title, summary: summary)
+    }
+
     /// Parse the raw Claude API response `Data` into a `ParsedTransaction`.
     /// Extracted so unit tests can exercise parsing without making network calls.
     static func parseResponse(_ data: Data, fallbackDescription: String) throws -> ParsedTransaction {

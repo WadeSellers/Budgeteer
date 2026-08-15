@@ -3,9 +3,10 @@ import UserNotifications
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(BudgetManager.self) private var budgetManager
-    @Environment(ThemeManager.self)  private var theme
-    @Environment(HintManager.self)   private var hintManager
+    @Environment(BudgetManager.self)  private var budgetManager
+    @Environment(ThemeManager.self)   private var theme
+    @Environment(HintManager.self)    private var hintManager
+    @Environment(NetworkMonitor.self) private var networkMonitor
 
     @State private var budgetText        = ""
     @State private var wasCancelled      = false
@@ -14,6 +15,8 @@ struct SettingsView: View {
     @State private var devConfirmation:  String?
     @State private var alertsEnabled     = false
     @State private var alertsDenied      = false
+    @State private var showTownHall      = false
+    @State private var showTownHallAdmin = false
     @AppStorage("soundEnabled") private var soundEnabled = true
 
     @FocusState private var budgetFocused: Bool
@@ -110,6 +113,26 @@ struct SettingsView: View {
                         Text("Sounds").foregroundStyle(.secondary)
                     }
 
+                    // Community
+                    Section {
+                        Button { showTownHall = true } label: {
+                            HStack {
+                                Label("Town Hall", systemImage: "bubble.left.and.bubble.right")
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .listRowBackground(theme.card)
+                    } header: {
+                        Text("Community").foregroundStyle(.secondary)
+                    } footer: {
+                        Text("Share feedback with your voice.")
+                            .foregroundStyle(.tertiary)
+                    }
+
                     // Privacy
                     Section {
                         Button {
@@ -145,6 +168,9 @@ struct SettingsView: View {
                             }
                             devButton("Delete All Transactions", destructive: true) {
                                 // Placeholder
+                            }
+                            devButton("Town Hall Admin") {
+                                showTownHallAdmin = true
                             }
 
                             if let msg = devConfirmation {
@@ -222,6 +248,17 @@ struct SettingsView: View {
                 if !wasCancelled { applyChanges() }
             }
             .preferredColorScheme(theme.resolvedColorScheme)
+            .sheet(isPresented: $showTownHall) {
+                TownHallView()
+                    .environment(theme)
+                    .environment(networkMonitor)
+            }
+            .sheet(isPresented: $showTownHallAdmin) {
+                let service = TownHallService()
+                TownHallAdminView(townHallService: service)
+                    .environment(theme)
+                    .environment(networkMonitor)
+            }
         }
     }
 

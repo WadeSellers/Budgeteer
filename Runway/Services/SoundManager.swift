@@ -95,4 +95,20 @@ final class SoundManager {
         // Custom sound file will go here
     }
 
+    // MARK: - Town Hall Haptics
+
+    /// Reaction tap — satisfying pop
+    func playReactionTap() {
+        hapticLight()
+    }
+
+    /// Town Hall post submitted
+    func playPostSubmitted() {
+        hapticSuccess()
+    }
+
+    /// Recording countdown tick (last 3 seconds)
+    func playCountdownTick() {
+        hapticSoft()
+    }
 }

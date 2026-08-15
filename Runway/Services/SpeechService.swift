@@ -9,6 +9,11 @@ final class SpeechService {
     var permissionGranted = false
     var lastError: String?
 
+    // Audio file capture — opt-in for Town Hall recordings
+    var saveAudioToFile   = false
+    private(set) var audioFileURL: URL?
+    private var audioFile: AVAudioFile?
+
     private var audioEngine        = AVAudioEngine()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask:    SFSpeechRecognitionTask?
@@ -41,21 +46,31 @@ final class SpeechService {
 
     // MARK: - Start / Stop
 
+    private var isStarting = false
+
     func start() throws {
-        guard !isRecording else { return }
+        guard !isRecording, !isStarting else { return }
+        isStarting = true
         transcript = ""
         lastError = nil
 
         // Guard: recognizer must be available
         guard let rec = recognizer, rec.isAvailable else {
             lastError = "Speech recognition unavailable"
+            isStarting = false
             return
         }
 
-        // If somehow the pre-warm didn't happen, set up now
-        if recognitionTask == nil {
-            setupRecognitionTask()
+        // Always start with a fresh recognition task — a prewarmed task may have
+        // gone stale (especially in Town Hall where there's a category selection step
+        // between prewarm and recording).
+        if recognitionTask != nil {
+            recognitionRequest?.endAudio()
+            recognitionTask?.cancel()
+            recognitionRequest = nil
+            recognitionTask = nil
         }
+        setupRecognitionTask()
 
         // Configure audio session for recording and activate
         let session = AVAudioSession.sharedInstance()
@@ -79,13 +94,28 @@ final class SpeechService {
         // Install tap and start the engine
         let inputNode = audioEngine.inputNode
         let format    = inputNode.outputFormat(forBus: 0)
+
+        // If saveAudioToFile is enabled, create an audio file to write alongside transcription
+        if saveAudioToFile {
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("caf")
+            audioFile = try AVAudioFile(forWriting: url, settings: format.settings)
+            audioFileURL = url
+        }
+
+        // Defensive: remove any existing tap to prevent crash on double-start
+        inputNode.removeTap(onBus: 0)
+
         inputNode.installTap(onBus: 0, bufferSize: 512, format: format) { [weak self] buffer, _ in
             self?.recognitionRequest?.append(buffer)
+            try? self?.audioFile?.write(from: buffer)
         }
 
         audioEngine.prepare()
         try audioEngine.start()
         isRecording = true
+        isStarting = false
 
         // Safety timeout — stop after 60 seconds to prevent recognition from hanging
         recognitionTimeoutTask?.cancel()
@@ -131,6 +161,7 @@ final class SpeechService {
         recognitionRequest = nil
         recognitionTask    = nil
         isRecording        = false
+        audioFile = nil  // Close file handle; audioFileURL kept for caller to read
         recognitionTimeoutTask?.cancel()
         recognitionTimeoutTask = nil
         if let observer = interruptionObserver {
@@ -144,5 +175,60 @@ final class SpeechService {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
             self?.prewarm()
         }
+    }
+
+    /// Remove the captured audio file after the caller has consumed it (e.g. uploaded to CloudKit).
+    func clearAudioFile() {
+        if let url = audioFileURL {
+            try? FileManager.default.removeItem(at: url)
+        }
+        audioFileURL = nil
+        saveAudioToFile = false
+    }
+
+    // MARK: - Waveform Extraction
+
+    /// Extract amplitude samples from an audio file for waveform visualization.
+    /// Returns normalized [Float] array with `sampleCount` points (default 50).
+    static func extractWaveform(from url: URL, sampleCount: Int = 50) -> [Float] {
+        guard let file = try? AVAudioFile(forReading: url) else { return [] }
+        let length = Int(file.length)
+        guard length > 0 else { return [] }
+
+        guard let format = AVAudioFormat(commonFormat: .pcmFormatFloat32,
+                                          sampleRate: file.fileFormat.sampleRate,
+                                          channels: 1,
+                                          interleaved: false),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(length)) else {
+            return []
+        }
+
+        do {
+            try file.read(into: buffer)
+        } catch {
+            return []
+        }
+
+        guard let channelData = buffer.floatChannelData?[0] else { return [] }
+        let frameCount = Int(buffer.frameLength)
+        let samplesPerBucket = max(1, frameCount / sampleCount)
+
+        var peaks = [Float]()
+        peaks.reserveCapacity(sampleCount)
+
+        for i in 0..<sampleCount {
+            let start = i * samplesPerBucket
+            let end = min(start + samplesPerBucket, frameCount)
+            var peak: Float = 0
+            for j in start..<end {
+                peak = max(peak, abs(channelData[j]))
+            }
+            peaks.append(peak)
+        }
+
+        // Normalize to 0–1
+        let maxPeak = peaks.max() ?? 1
+        guard maxPeak > 0 else { return peaks }
+        return peaks.map { $0 / maxPeak }
     }
 }

@@ -1,8 +1,21 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 @main
 struct BudgeteerApp: App {
+    let modelContainer: ModelContainer
+
+    init() {
+        // Print device ID for Town Hall admin setup — remove after configuring
+        print("[Budgeteer] Device ID: \(UIDevice.current.identifierForVendor?.uuidString ?? "unknown")")
+
+        // Keep SwiftData local-only — CloudKit is used manually by TownHallService,
+        // not through SwiftData's built-in sync.
+        let config = ModelConfiguration(cloudKitDatabase: .none)
+        modelContainer = try! ModelContainer(for: Transaction.self, configurations: config)
+    }
+
     @State private var budgetManager  = BudgetManager()
     @State private var networkMonitor = NetworkMonitor()
     @State private var themeManager   = ThemeManager()
@@ -11,7 +24,7 @@ struct BudgeteerApp: App {
     var body: some Scene {
         WindowGroup {
             SystemSchemeCapture()
-                .modelContainer(for: Transaction.self)
+                .modelContainer(modelContainer)
                 .environment(budgetManager)
                 .environment(networkMonitor)
                 .environment(themeManager)

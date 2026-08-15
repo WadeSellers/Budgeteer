@@ -19,6 +19,7 @@ struct MainView: View {
     @State private var showSettings          = false
     @State private var showPrivacyConsent    = false
     @State private var consentContentVisible = false
+    @State private var showTownHall          = false
 
     @AppStorage("hasAcceptedPrivacy") private var hasAcceptedPrivacy = false
 
@@ -222,6 +223,12 @@ struct MainView: View {
                 .environment(budgetManager)
                 .environment(theme)
                 .environment(hintManager)
+                .environment(networkMonitor)
+        }
+        .sheet(isPresented: $showTownHall) {
+            TownHallView()
+                .environment(theme)
+                .environment(networkMonitor)
         }
         // When the recognizer delivers its final result, isRecording flips to false.
         // That's our signal to process — the transcript is now complete.
@@ -449,6 +456,20 @@ struct MainView: View {
     private var micRow: some View {
         VStack(spacing: 10) {
             HStack(spacing: 28) {
+
+                // ── Town Hall button ────────────────────────────────────────
+                Button { showTownHall = true } label: {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                        .font(.system(size: 15))
+                        .frame(width: 44, height: 44)
+                        .background(theme.surface)
+                        .clipShape(Circle())
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityLabel("Town Hall")
+                .accessibilityHint("Open community voice feedback")
+                .disabled(isProcessing || speechService.isRecording)
+                .opacity(overlayExpanded ? 0 : 1)
 
                 // ── Keyboard button ──────────────────────────────────────────
                 Button {
