@@ -17,6 +17,7 @@ struct SettingsView: View {
     @State private var alertsDenied      = false
     @State private var showTownHall      = false
     @State private var showTownHallAdmin = false
+    @State private var showFeedback      = false
     @AppStorage("soundEnabled") private var soundEnabled = true
 
     @FocusState private var budgetFocused: Bool
@@ -130,6 +131,26 @@ struct SettingsView: View {
                         Text("Community").foregroundStyle(.secondary)
                     } footer: {
                         Text("Share feedback with your voice.")
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    // Feedback
+                    Section {
+                        Button { showFeedback = true } label: {
+                            HStack {
+                                Label("Send Feedback", systemImage: "envelope")
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .listRowBackground(theme.card)
+                    } header: {
+                        Text("Feedback").foregroundStyle(.secondary)
+                    } footer: {
+                        Text("Bug reports, feature requests, or just saying hi — straight to Wade.")
                             .foregroundStyle(.tertiary)
                     }
 
@@ -258,6 +279,10 @@ struct SettingsView: View {
                 TownHallAdminView(townHallService: service)
                     .environment(theme)
                     .environment(networkMonitor)
+            }
+            .sheet(isPresented: $showFeedback) {
+                FeedbackView()
+                    .environment(theme)
             }
         }
     }
