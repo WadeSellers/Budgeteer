@@ -81,28 +81,36 @@ struct MainView: View {
 
             // ── Layer 2: Main content ────────────────────────────────────────
             // Fades out when the recording overlay takes over
-            VStack(spacing: 0) {
-                CalendarHeatmapView(
-                    transactions: transactions,
-                    dailyBudget: {
-                        let days = Double(max(1, Calendar.current.range(of: .day, in: .month, for: Date())?.count ?? 30))
-                        return budgetManager.monthlyBudget > 0 ? budgetManager.monthlyBudget / days : 1
-                    }(),
-                    monthlyBudget: budgetManager.monthlyBudget,
-                    selectedDate: selectedDate,
-                    onDayTap: { date in selectedDate = date },
-                    onBudgetTap: { showSettings = true }
-                )
-                .padding(.top, 8)
+            // Scrolls only when content outgrows the screen (small devices like
+            // the SE); on larger phones the min-height floor keeps the layout
+            // identical to the old fixed VStack.
+            GeometryReader { geo in
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        CalendarHeatmapView(
+                            transactions: transactions,
+                            dailyBudget: {
+                                let days = Double(max(1, Calendar.current.range(of: .day, in: .month, for: Date())?.count ?? 30))
+                                return budgetManager.monthlyBudget > 0 ? budgetManager.monthlyBudget / days : 1
+                            }(),
+                            monthlyBudget: budgetManager.monthlyBudget,
+                            selectedDate: selectedDate,
+                            onDayTap: { date in selectedDate = date },
+                            onBudgetTap: { showSettings = true }
+                        )
+                        .padding(.top, 8)
 
-                Spacer()
-                meterSection
-                Spacer()
-                recordingErrorView
-                // Reserve space so content never overlaps the mic row
-                Color.clear.frame(height: 148)
+                        Spacer()
+                        meterSection
+                        Spacer()
+                        recordingErrorView
+                        // Reserve space so content never overlaps the mic row
+                        Color.clear.frame(height: 148)
+                    }
+                    .frame(minHeight: geo.size.height)
+                }
+                .scrollBounceBehavior(.basedOnSize)
             }
-            .safeAreaPadding(.top)
             .opacity(overlayExpanded ? 0 : 1)
 
             // ── Layer 3: Recording overlay ───────────────────────────────────
